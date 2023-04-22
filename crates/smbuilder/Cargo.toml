@@ -7,7 +7,7 @@ edition = "2021"
 
 [lib]
 name = "smbuilder"
-path = "crates/smbuilder/lib.rs"
+path = "lib/lib.rs"
 test = true
 crate-type = ["lib"]
 
