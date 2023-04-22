@@ -1,0 +1,3 @@
+cargo:rerun-if-changed=build/main.rs
+cargo:rustc-env=TYPENUM_BUILD_CONSTS=/home/ezntek/Sources/smbuilder/target/debug/build/typenum-2b58cdff3e837fb2/out/consts.rs
+cargo:rustc-env=TYPENUM_BUILD_OP=/home/ezntek/Sources/smbuilder/target/debug/build/typenum-2b58cdff3e837fb2/out/op.rs
