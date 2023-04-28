@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use clap::Parser;
+use smbuilder::prelude::Render96exMakeopts;
+use smbuilder_cli::cli_parser::CliArgs;
+
 fn main() {
-    println!("hello, world!");
+    let cli_args = CliArgs::parse();
 }

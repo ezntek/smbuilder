@@ -15,6 +15,7 @@ pub mod cli_parser;
 
 #[allow(unused_imports)] // XXX: we're gonna need it for the macros...
 use colored::Colorize;
+use smbuilder::prelude::MakeoptsType;
 
 #[cfg(test)]
 mod tests {}
@@ -40,4 +41,21 @@ macro_rules! log_err {
     ( $text:expr ) => {
         println!("{}{}", "Info: ".bold.red(), $text)
     };
+}
+
+pub fn get_toml_makeopts_from_string<S>(string: S) -> String
+where
+    S: AsRef<str>
+     + ToString
+{
+    let s = string.to_string();
+    let makeopt_expressions = s.split(" ").collect::<Vec<&str>>();
+    let mut toml_string = String::from("[");
+    
+    for expr in makeopt_expressions {
+        let makeopt = expr.split("=").collect::<Vec<&str>>();
+        toml_string.push_str(format!("{{opt={},arg={}}},", makeopt[0], makeopt[1]).as_str());
+    };
+    toml_string.push_str("]");
+    toml_string
 }
