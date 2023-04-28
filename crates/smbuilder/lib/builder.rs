@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{path::{Path,PathBuf}, sync::{Arc, Mutex}, fs, io::{Write, BufReader, BufRead}, process::{Stdio, Command, ChildStdout}, error::Error, thread};
+use std::{path::{Path,PathBuf}, sync::Mutex, fs, io::{Write, BufReader, BufRead}, process::{Stdio, Command, ChildStdout}};
 use std::os::unix::fs::PermissionsExt;
 use crate::prelude::*;
 
@@ -247,39 +247,5 @@ where
         self.cmd_stdout = Some(Mutex::new(child.stdout.take().unwrap())); // save the stdout to the struct (the function will only write to the stderr)
         
         child.wait().unwrap(); // now wait for it to finnish
-    }
-}
-
-pub struct ThreadedSmbuilder<M: MakeoptsType> {
-    smbuilder: Arc<Smbuilder<M>>,
-}
-
-impl<M> ThreadedSmbuilder<M>
-where
-    M: MakeoptsType
-        + serde::Serialize
-        + for<'a> serde::Deserialize<'a>
-{
-    pub fn threaded_build(&mut self) {
-        // set things up
-        let smbuilder_self = self.smbuilder.clone();
-        let mut build_cmd = Command::new(&smbuilder_self.base_dir.join("build.sh"));
-        
-        let mut child = build_cmd
-                .stdout(Stdio::piped())
-                .spawn() // spawn the command
-                .unwrap();
-        // the magic happens here
-        thread::spawn(|| {
-            let stdout = child.stdout.take().unwrap();
-            
-            if let Some(cmd_stdout) = smbuilder_self.clone().cmd_stdout {
-                {
-                   cmd_stdout.lock() 
-                }
-            } else {
-                panic!("you are fucking dumbass")
-            };
-        });
     }
 }

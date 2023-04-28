@@ -54,6 +54,13 @@ impl Rom {
             region: Region::US,
         }
     }
+
+    pub fn new(region: Region, path: PathBuf) -> Rom {
+        Rom {
+            region,
+            path
+        }
+    }
 }
 
 #[derive(serde_derive::Deserialize, serde_derive::Serialize, Debug)]
@@ -96,21 +103,21 @@ pub struct DynOSPack {
 ///
 #[derive(serde_derive::Serialize, serde_derive::Deserialize, Debug)]
 pub struct BuildSpec<M: MakeoptsType> {
-    // The number of jobs to be put together with the MAKEOPTS during the compile stage.
+    /// The number of jobs to be put together with the MAKEOPTS during the compile stage.
     pub jobs: u8,
-    // The name of the build, it will default to the name of the repo if left empty.
+    /// The name of the build, it will default to the name of the repo if left empty.
     pub name: String,
-    // Any additional makeopts to be added to the make call. Will include the jobs.
+    /// Any additional makeopts to be added to the make call. Will include the jobs.
     pub additional_makeopts: Vec<M>,
-    // The executable path. Not playable if empty, playable if not empty.
+    /// The executable path. Not playable if empty, playable if not empty.
     pub executable_path: Option<String>,
-    // A custom texture pack (There can only be one!)
+    /// A custom texture pack (There can only be one!)
     pub texture_pack_path: Option<PathBuf>,
-    // The repo struct
+    /// The repo struct
     pub repo: Repo,
-    // The rom struct
+    /// The rom struct
     pub rom: Rom,
-    // Any DynOS packs the user wishes to add
+    /// Any DynOS packs the user wishes to add
     pub dynos_packs: Option<Vec<DynOSPack>>,
 }
 

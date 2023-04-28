@@ -11,7 +11,33 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+pub mod cli_parser;
 
-fn main() {
-    println!("hello, world!");
+#[allow(unused_imports)] // XXX: we're gonna need it for the macros...
+use colored::Colorize;
+
+#[cfg(test)]
+mod tests {}
+
+// nice macros for logging
+
+#[macro_export]
+macro_rules! log_info {
+    ( $text:expr ) => {
+        println!("{}{}", "Info: ".bold().cyan(), $text)
+    };
+}
+
+#[macro_export]
+macro_rules! log_warn {
+    ( $text:expr ) => {
+        println!("{}{}", "Info: ".bold().yellow(), $text)
+    };
+}
+
+#[macro_export]
+macro_rules! log_err {
+    ( $text:expr ) => {
+        println!("{}{}", "Info: ".bold.red(), $text)
+    };
 }
