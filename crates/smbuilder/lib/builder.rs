@@ -193,7 +193,7 @@ where
         fs::copy(&self.spec.rom.path, &repo_dir).unwrap();
 
         // create the build script
-        let build_script_string = &self.spec.get_stringified_makeopts(None);
+        let build_script_string = &self.spec.get_makeopts_string(None);
         fs::File::create(&self.base_dir.join("build.sh"))
             .unwrap()
             .write_all(

@@ -25,10 +25,40 @@ fn get_dummy_base_path() -> PathBuf {
     Path::new(std::env!("HOME")).join(".local/share/smbuilder")
 }
 
-pub enum Versions {
-    Render96ex,
-    Sm64ex,
-    Sm64exCoop,
+pub fn get_toml_makeopts_from_string<S>(string: S) -> String
+where
+    S: AsRef<str>
+     + ToString
+{
+    let s = string.to_string();
+    let makeopt_expressions = s.split(" ").collect::<Vec<&str>>();
+    let mut toml_string = String::from("[");
+    
+    for expr in makeopt_expressions {
+        let makeopt = expr.split("=").collect::<Vec<&str>>();
+        toml_string.push_str(format!("{{opt={},arg={}}},", makeopt[0], makeopt[1]).as_str());
+    };
+    toml_string.push_str("]");
+    toml_string
+}
+
+pub fn get_enum_makeopts_from_string<S, M>(string: S) -> Vec<M>
+where
+    S: AsRef<str>
+     + ToString,
+    M: MakeoptsType
+     + for<'a> serde::Deserialize<'a>
+{
+    let toml_makeopts = get_toml_makeopts_from_string(string);
+
+    #[derive(serde_derive::Deserialize)]
+    struct DummyStruct<M> {
+        makeopts: Vec<M>
+    }
+
+    toml::from_str::<DummyStruct<M>>(toml_makeopts.as_str())
+        .expect("One makeopt in the string may not be a valid makeopt! Please check your spelling and try again.")
+        .makeopts
 }
 
 #[derive(serde_derive::Deserialize, serde_derive::Serialize, Debug, PartialEq, Eq)]
@@ -39,7 +69,6 @@ pub enum Region {
     JP,
     SH
 }
-
 
 #[derive(serde_derive::Deserialize, serde_derive::Serialize, Debug, PartialEq, Eq)]
 pub struct Rom {
@@ -135,7 +164,7 @@ where
         spec
     }
 
-    pub fn get_stringified_makeopts(&self, string_makeopts: Option<String>) -> String {
+    pub fn get_makeopts_string(&self, string_makeopts: Option<String>) -> String {
         // dirty hacks to get the string names of the enums
         #[derive(serde_derive::Deserialize)]
         struct Makeopt {
@@ -177,7 +206,7 @@ where
     where
         P: AsRef<P> + std::fmt::Display
     {
-        format!("#!/bin/sh\ncd {}\nmake {} -j{}", repo_path, &self.get_stringified_makeopts(string_makeopts), &self.jobs)
+        format!("#!/bin/sh\ncd {}\nmake {} -j{}", repo_path, &self.get_makeopts_string(string_makeopts), &self.jobs)
     }
 }
 

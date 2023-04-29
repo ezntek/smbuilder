@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use clap::{Parser, Subcommand, Args, ArgAction};
+use clap::{Parser, Subcommand, Args, ArgAction, builder::Str};
 
 #[derive(Args, Debug)]
 pub struct BuildArgs {
@@ -40,11 +40,13 @@ pub enum Command {
     NewBuild(BuildArgs),
     EditBuild(BuildArgs),
     Info { name: String },
+    Build { name: String },
+    Init,
 }
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct CliArgs {
     #[command(subcommand)]
-    action: Command
+    pub action: Command
 }

@@ -12,4 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub use crate::{builder::*, makeopts::*, common::*};
+pub use crate::{
+    builder::*,
+    makeopts::{
+        Sm64exMakeopts,
+        Render96exMakeopts,
+        Sm64exCoopMakeopts,
+        MakeoptsType
+    },
+    common::{
+        BuildSpec,
+        TomlSpec,
+        Rom,
+        Region,
+        Repo,
+        DynOSPack,
+    },
+};

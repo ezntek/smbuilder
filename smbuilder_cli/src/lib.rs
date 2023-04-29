@@ -13,9 +13,11 @@
 // limitations under the License.
 pub mod cli_parser;
 
+use cli_parser::*;
+use smbuilder::prelude::*;
+
 #[allow(unused_imports)] // XXX: we're gonna need it for the macros...
 use colored::Colorize;
-use smbuilder::prelude::MakeoptsType;
 
 #[cfg(test)]
 mod tests {}
@@ -43,19 +45,22 @@ macro_rules! log_err {
     };
 }
 
-pub fn get_toml_makeopts_from_string<S>(string: S) -> String
-where
-    S: AsRef<str>
-     + ToString
-{
-    let s = string.to_string();
-    let makeopt_expressions = s.split(" ").collect::<Vec<&str>>();
-    let mut toml_string = String::from("[");
-    
-    for expr in makeopt_expressions {
-        let makeopt = expr.split("=").collect::<Vec<&str>>();
-        toml_string.push_str(format!("{{opt={},arg={}}},", makeopt[0], makeopt[1]).as_str());
-    };
-    toml_string.push_str("]");
-    toml_string
+enum MakeoptsTypes {
+    Render96ex(Render96exMakeopts),
+    Sm64ex(Sm64exMakeopts),
+    Sm64exCoop(Sm64exCoopMakeopts)
+}
+
+fn new_build(args: BuildArgs, repo: Repo) {
+    let builder: SmbuilderBuilder<_> = Smbuilder::builder()
+}
+
+pub fn run(args: CliArgs) {
+    match args.action {
+        Command::Init => smbuilder::init(),
+        Command::Info { name } => log_info!("The feature \"Info\" is yet to be implemented. Called Info {{{}}}", name),
+        Command::Build { name } => todo!(),
+        Command::EditBuild(args) => todo!(),
+        Command::NewBuild(args) => todo!(),
+    }
 }
