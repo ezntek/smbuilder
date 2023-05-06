@@ -1,31 +1,23 @@
 using Gtk 4.0;
 using Adw 1;
 
-Adw.ApplicationWindow app_window {
-    title: "Hello, Gtk!";
+Adw.Window window {
+    title: "Hello, Gtk + Libadwaita!";
 
-    content: Adw.Window {
-        title: "Hello, Gtk + Libadwaita!";
+    Gtk.Box {
+        orientation: vertical;
+        
+        margin-bottom: 5;
+        margin-top: 5;
+        margin-end: 5;
+        margin-start: 5;
 
-        child: Gtk.Box {
-            orientation: vertical;
-            
-            margin-bottom: 5;
-            margin-top: 5;
-            margin-end: 5;
-            margin-start: 5;
+        Gtk.Label lbl {
+            label: "arstarstaadawfdarstdv";
+        }
 
-            Gtk.Label lbl {
-                label: "arstarstaadawfdarstdv";
-            }
-
-            Gtk.Button btn {
-                clicked => $on_click();
-
-                Adw.ButtonContent {
-                    label: "arstart";
-                }
-            }
-        };
-    };
+        Gtk.Button btn {
+            label: "arstart";
+        }
+    }
 }

@@ -10,6 +10,6 @@ adw = { version = "0.4.1", package = "libadwaita" }
 colored = "2.0.0"
 derive_builder = "0.12.0"
 git2 = "0.17.1"
-gtk = { version = "0.6.6", package = "gtk4" }
+gtk4 = "0.6.6"
 serde = { version = "1.0.162", features = ["serde_derive"] }
 toml = "0.7.3"
