@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <object class="AdwApplicationWindow" id="app_window">
+    <property name="title">Hello, Gtk!</property>
+    <property name="content">
+      <object class="AdwWindow">
+        <property name="title">Hello, Gtk + Libadwaita!</property>
+        <property name="child">
+          <object class="GtkBox">
+            <property name="orientation">1</property>
+            <property name="margin-bottom">5</property>
+            <property name="margin-top">5</property>
+            <property name="margin-end">5</property>
+            <property name="margin-start">5</property>
+            <child>
+              <object class="GtkLabel" id="lbl">
+                <property name="label">arstarstaadawfdarstdv</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="btn">
+                <signal name="clicked" handler="on_click"/>
+                <child>
+                  <object class="AdwButtonContent">
+                    <property name="label">arstart</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </property>
+      </object>
+    </property>
+  </object>
+</interface>
