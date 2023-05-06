@@ -1,4 +1,10 @@
 /target
 **/target
 /doc*
-/smbuilder_cli/smbuilder_cli
+
+
+# Added by cargo
+#
+# already existing elements were commented out
+
+#/target
