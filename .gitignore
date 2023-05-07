@@ -13,5 +13,5 @@
 build
 builddir
 subprojects/blueprint-compiler.wrap
-
+/ui_xml
 /subprojects/blueprint-compiler

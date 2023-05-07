@@ -22,7 +22,7 @@ fn on_click(btn: &gtk4::Button) {
 fn on_app_activate(app: &adw::Application) {
     let builder = gtk4::Builder::from_file("./ui_xml/main.ui");
 
-    let window: adw::Window = builder.object("window").unwrap();    
+    let window: gtk4::Window = builder.object("window").unwrap();    
     window.set_application(Some(app));
     let button: gtk4::Button = builder.object("btn").unwrap();
     button.connect_clicked(on_click);

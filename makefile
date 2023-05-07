@@ -1,10 +1,10 @@
-build_release:
+build_release: build_uis
 	cargo build --release
 
 run_release: build_release
 	target/release/smbuilder
 
-build:
+build: build_uis
 	cargo build
 
 run: build
