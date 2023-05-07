@@ -54,3 +54,20 @@ Note that the summary may not be fully accurate, this is a breakdown for lazy re
 
 * Write a module for this in pyo3
 * Write stubs for pyo3
+
+## Developing
+
+Host dependencies:
+ * GTK4 headers
+ * libadwaita headers
+
+Building:
+ * `make build` -> build development version
+ * `make build_release` -> build release version
+ * `make run` -> build and run development version
+ * `make run_release` -> build and run release version
+ * `make build_uis` -> use the build script in the `scripts` folder to build the uis from `ui_blueprints` to `ui_xml`
+
+Running the scripts:
+
+check the `README` in the scripts folder.
