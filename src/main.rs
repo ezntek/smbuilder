@@ -15,22 +15,23 @@
 use gtk4::prelude::*;
 use gtk4::glib;
 
-fn on_click(btn: &gtk4::Button) {
-    btn.set_label("you clicked me!");
-}
-
-fn on_app_activate(app: &adw::Application) {
+fn on_app_activate(&self) {
     let builder = gtk4::Builder::from_file("./ui_xml/main.ui");
 
     let window: gtk4::Window = builder.object("window").unwrap();    
     window.set_application(Some(app));
     let button: gtk4::Button = builder.object("btn").unwrap();
-    button.connect_clicked(on_click);
+    button.connect_clicked(self.on_click);
 
     window.show();
 }
 
-fn main() -> glib::ExitCode {
+fn on_click(btn: &gtk4::Button) {
+    btn.set_label("you clicked me!");
+}
+
+
+fn main() -> adw::Application {
     let application = adw::Application::builder()
         .application_id("com.ezntek.smbuilder")
         .build();
@@ -38,3 +39,4 @@ fn main() -> glib::ExitCode {
     application.connect_activate(on_app_activate);
     application.run()
 }
+

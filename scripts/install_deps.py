@@ -11,6 +11,18 @@ import os
 import shutil
 import requests
 
+def clean():
+    for path in [
+            "/tmp/blueprint-compiler",
+            "/tmp/temp.zip"]:
+        if not os.path.exists(path):
+            continue
+
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        elif os.path.isfile(path):
+            os.remove(path)
+
 def log(text: str):
     print(f"\033[1mInfo: \033[0m{text}")
 
@@ -21,6 +33,8 @@ def main():
 
     # get the latest zip from the repo
     try:
+        clean()
+        
         log(f"Downloading file from {url}")
         file = requests.get(url, allow_redirects=True)
         with open("/tmp/temp.zip", 'wb') as f:
@@ -43,11 +57,9 @@ def main():
         log("running build script...")
         subprocess.run(cmd, shell=True)
     finally:
-        return
         # clean up
         log("cleaning up...")
-        shutil.rmtree(source_path)
-        os.remove("/tmp/temp.zip")
+        clean()
     
 
 if __name__ == "__main__":
