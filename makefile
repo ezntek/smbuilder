@@ -1,7 +1,7 @@
-build_release: build_uis
+buildrelease: build_uis
 	cargo build --release
 
-run_release: build_release
+runrelease: build_release
 	target/release/smbuilder
 
 build: build_uis
@@ -10,8 +10,8 @@ build: build_uis
 run: build
 	target/debug/smbuilder
 
-build_uis:
+builduis:
 	scripts/build_uis.py ui_blueprints ui_xml
 
-install_deps:
+installdeps:
 	scripts/install_deps.py

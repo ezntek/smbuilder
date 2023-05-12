@@ -12,6 +12,9 @@ if __name__ == "__main__":
         print(f"{__bold__}Usage:{__end__} /path/to/script source_dir dest_dir")
         exit(1)
     
+    if not os.path.exists("ui_xml"):
+        os.mkdir("ui_xml")
+
     for file in os.listdir(dirname):
         name, ext = os.path.splitext(file)
         if ext in [".blueprint", ".blp"]:
