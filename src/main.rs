@@ -16,7 +16,7 @@ use gtk4::prelude::*;
 use gtk4::glib;
 
 fn on_click(btn: &gtk4::Button) {
-    btn.set_label("you clicked me!")
+    btn.set_label("you clicked me!");
 }
 
 fn on_app_activate(app: &adw::Application) {

@@ -18,6 +18,7 @@ extern crate derive_builder;
 
 pub mod builder;
 
+use colored::Colorize;
 use serde::{Deserialize,Serialize};
 use std::path::PathBuf;
 
@@ -60,3 +61,23 @@ pub struct Datapack {
     pub enabled: bool,
 }
 
+#[macro_export]
+macro_rules! log_err {
+    ($text:literal) => {
+        println!("{}{}", "Err: ".bold().red().as_str(), $text);
+    };
+}
+
+#[macro_export]
+macro_rules! log_warn {
+    ($text:literal) => {
+        println!("{}{}", "Warn: ".bold().yellow().as_str(), $text);
+    };
+}
+
+#[macro_export]
+macro_rules! log_info {
+    ($text:literal) => {
+        println!("{}{}", "Err: ".bold().blue().as_str(), $text);
+    };
+}

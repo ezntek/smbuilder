@@ -60,7 +60,8 @@ Note that the summary may not be fully accurate, this is a breakdown for lazy re
 Host dependencies:
  * GTK4 headers
  * libadwaita headers
-
+ * the blueprint compiler (`blueprint-compiler`)
+ 
 Building:
  * `make build` -> build development version
  * `make build_release` -> build release version

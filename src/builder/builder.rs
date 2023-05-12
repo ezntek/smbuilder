@@ -14,8 +14,8 @@
 
 use std::{path::PathBuf, fs, io::{Write, BufReader, BufRead}, process::{Command, Stdio}};
 use crate::Makeopt;
+
 use super::types::Spec;
-use colored::Colorize;
 
 pub fn get_makeopts_string(makeopts: &Vec<Makeopt>) -> String {
     let mut retval = String::from("");
@@ -39,36 +39,53 @@ impl Smbuilder {
         }
     }
 
-    pub fn setup_build(&mut self) {
+    pub fn setup_build(&mut self) -> Result<(), &str>{
         let mut smbuilder_toml_file = fs::File::create(&self.base_dir.join("smbuilder.toml"))
             .expect("creating the smbuilder.toml file failed!");
+        
+        let toml_file_bytes = match toml::to_string(&self.spec) {
+            Ok(file) => file.as_bytes(),
+            Err(_) => {
+                return Err("Failed to parse the spec into toml! Exiting...");
+            }
+        };
 
-        smbuilder_toml_file.write_all(
-            toml::to_string(&self.spec)
-                .expect("Failed to parse the `Spec` into a toml string!")
-                .as_bytes()
-        ).expect("Failed to write the build specification to the smbuilder.toml!");
+        match smbuilder_toml_file.write_all(toml_file_bytes) {
+            Ok() => (),
+            Err(_) => return Err("Failed to write the build specification to the smbuilder.toml!"),         
+        }
 
         let repo_dir = &self.base_dir.join(&self.spec.repo.name);
         
-        git2::build::RepoBuilder::new()
+        match git2::build::RepoBuilder::new()
             .branch(&self.spec.repo.branch)
             .clone(
                 &self.spec.repo.url,
                 &repo_dir)
-            .expect(format!("Failed to clone {} into {}!", &self.spec.repo.url, repo_dir.display()).as_str());
+        {
+            Ok(_) => (),
+            Err(_) => return Err(format!("Failed to clone {} into {}!", &self.spec.repo.url, repo_dir.display()).as_str()),
+        }
 
-        fs::copy(&self.spec.rom.path, &repo_dir)
-            .expect(format!("Failed to copy {} into {}!", &self.spec.rom.path.display(), repo_dir.display()).as_str());
-                
-        fs::File::create(&self.base_dir.join("build.sh"))   
-            .expect(format!("failed to create {}!", &self.base_dir.join("build.sh").display()).as_str())
-            .write_all(
-                &self.spec.get_build_script(repo_dir).as_bytes()
-            ).expect(format!("Failed to write {}!", &self.base_dir.join("build.sh").display()).as_str());
+        match fs::copy(&self.spec.rom.path, &repo_dir) {
+            Ok(_) => (),
+            Err(_) => return Err(format!("Failed to copy {} into {}!", &self.spec.rom.path.display(), repo_dir.display()).as_str()),
+        }
+
+        let build_script = match fs::File::create(&self.base_dir.join("build.sh")) {
+            Ok(file) => file,
+            Err(_) => return Err(format!("failed to create {}!", &self.base_dir.join("build.sh").display()).as_str())
+        };
+
+        match build_script.write_all(&self.spec.get_build_script(repo_dir)) {
+            Ok(_) => (),
+            Err(_) => return Err(format!("failed to write to the build script at {}!", &self.base_dir.join("build.sh").display()).as_str())
+        }
+
+        Ok(())
     }
 
-    pub fn build<S>(&self, cmdout_prefix: Option<S>)
+    pub fn build<S>(&self, cmdout_prefix: Option<S>) -> Result<(), &str>
     where
         S: AsRef<str>
          + std::fmt::Display
@@ -83,13 +100,21 @@ impl Smbuilder {
         let reader = BufReader::new(child.stdout.take().unwrap());
 
         for line in reader.lines() {
+            let ln = match line {
+                Ok(line) => line,
+                Err(_) => break,
+            };
+
             if let Some(c) = &cmdout_prefix {
-                println!("{}{}", c, line.unwrap())
+                println!("{}{}", c, ln)
             } else {
-                println!("{}", line.unwrap())
+                println!("{}", ln)
             }
         }
 
-        child.wait().unwrap();
+        match child.wait() {
+            Ok(_) => Ok(()),
+            Err(_) => Err(format!("failed to wait on the child process!").as_str()),
+        }
     }
 }
