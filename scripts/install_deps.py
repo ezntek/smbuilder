@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+#
 # script to install dependencies that cargo/your system package manager cant install
 #
 #
@@ -43,7 +45,7 @@ def main():
     # clean up
 
     log("cleaning up...")
-    
+
     shutil.rmtree(source_path)
     os.remove("/tmp/temp.zip")
     

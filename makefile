@@ -12,3 +12,6 @@ run: build
 
 build_uis:
 	scripts/build_uis.py ui_blueprints ui_xml
+
+install_deps:
+	scripts/install_deps.py
