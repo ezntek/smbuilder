@@ -46,7 +46,6 @@ pub struct Repo {
     pub supports_textures: bool,
 }
 
-
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Makeopt {
     pub key: String,

@@ -12,31 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use gtk4::prelude::*;
-use gtk4::glib;
+use cursive::views::{Dialog, TextView};
 
-fn on_app_activate(&self) {
-    let builder = gtk4::Builder::from_file("./ui_xml/main.ui");
+fn main() {
+    let mut siv = cursive::default();
 
-    let window: gtk4::Window = builder.object("window").unwrap();    
-    window.set_application(Some(app));
-    let button: gtk4::Button = builder.object("btn").unwrap();
-    button.connect_clicked(self.on_click);
+    siv.add_layer(Dialog::around(
+        TextView::new("Hello, World!")
+    ).title("Cursive")
+     .button("Exit", |s| s.quit()));
 
-    window.show();
+    siv.run();
 }
-
-fn on_click(btn: &gtk4::Button) {
-    btn.set_label("you clicked me!");
-}
-
-
-fn main() -> adw::Application {
-    let application = adw::Application::builder()
-        .application_id("com.ezntek.smbuilder")
-        .build();
-
-    application.connect_activate(on_app_activate);
-    application.run()
-}
-

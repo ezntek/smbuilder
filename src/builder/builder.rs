@@ -39,20 +39,17 @@ impl Smbuilder {
         }
     }
 
-    pub fn setup_build(&mut self) -> Result<(), &str>{
+    pub fn setup_build(&mut self){
         let mut smbuilder_toml_file = fs::File::create(&self.base_dir.join("smbuilder.toml"))
             .expect("creating the smbuilder.toml file failed!");
         
-        let toml_file_bytes = match toml::to_string(&self.spec) {
-            Ok(file) => file.as_bytes(),
-            Err(_) => {
-                return Err("Failed to parse the spec into toml! Exiting...");
-            }
-        };
-
-        match smbuilder_toml_file.write_all(toml_file_bytes) {
-            Ok() => (),
-            Err(_) => return Err("Failed to write the build specification to the smbuilder.toml!"),         
+        match smbuilder_toml_file.write_all(
+            toml::to_string(&self.spec)
+                .unwrap() // we'd want to panic if this breaks here anyway ._.
+                .as_bytes()
+        ) {
+            Ok(_) => (),
+            Err(_) => panic!("Failed to write the build specification to the smbuilder.toml!"),         
         }
 
         let repo_dir = &self.base_dir.join(&self.spec.repo.name);
@@ -64,25 +61,23 @@ impl Smbuilder {
                 &repo_dir)
         {
             Ok(_) => (),
-            Err(_) => return Err(format!("Failed to clone {} into {}!", &self.spec.repo.url, repo_dir.display()).as_str()),
+            Err(_) => panic!("Failed to clone {} into {}!", &self.spec.repo.url, repo_dir.display()),
         }
 
         match fs::copy(&self.spec.rom.path, &repo_dir) {
             Ok(_) => (),
-            Err(_) => return Err(format!("Failed to copy {} into {}!", &self.spec.rom.path.display(), repo_dir.display()).as_str()),
+            Err(_) => panic!("Failed to copy {} into {}!", &self.spec.rom.path.display(), repo_dir.display()),
         }
 
-        let build_script = match fs::File::create(&self.base_dir.join("build.sh")) {
+        let mut build_script = match fs::File::create(&self.base_dir.join("build.sh")) {
             Ok(file) => file,
-            Err(_) => return Err(format!("failed to create {}!", &self.base_dir.join("build.sh").display()).as_str())
+            Err(_) => panic!("failed to create {}!", &self.base_dir.join("build.sh").display())
         };
 
-        match build_script.write_all(&self.spec.get_build_script(repo_dir)) {
+        match build_script.write_all(&self.spec.get_build_script(repo_dir).as_bytes()) {
             Ok(_) => (),
-            Err(_) => return Err(format!("failed to write to the build script at {}!", &self.base_dir.join("build.sh").display()).as_str())
+            Err(_) => panic!("failed to write to the build script at {}!", &self.base_dir.join("build.sh").display())
         }
-
-        Ok(())
     }
 
     pub fn build<S>(&self, cmdout_prefix: Option<S>) -> Result<(), &str>
@@ -114,7 +109,7 @@ impl Smbuilder {
 
         match child.wait() {
             Ok(_) => Ok(()),
-            Err(_) => Err(format!("failed to wait on the child process!").as_str()),
+            Err(_) => panic!("failed to wait on the build process!"),
         }
     }
 }
