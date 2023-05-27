@@ -24,21 +24,13 @@ pub enum Action {
     Info,
 }
 
-pub enum CurrentMenu {
-    BuildNew,
-    BuildSelect,
-}
-
 use Action::*;
-use CurrentMenu::*;
 
 trait SmbuilderUiView {
-    fn setup_ui() -> Box<dyn View>;
+    fn setup_ui(&self) -> Box<dyn View>;
 }
 
-pub struct App {
-    pub state: CurrentMenu,
-}
+pub struct App {}
 
 impl App {
     // ui related setup functions
@@ -55,9 +47,7 @@ impl App {
 
     // nice public functions
     pub fn new() -> App {
-        App {
-            state: BuildSelect
-        }
+        App {}
     }
 
     pub fn run(&self) {
