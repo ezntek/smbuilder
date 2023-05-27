@@ -17,6 +17,7 @@
 extern crate derive_builder;
 
 pub mod builder;
+pub mod ui;
 
 use colored::Colorize;
 use serde::{Deserialize,Serialize};

@@ -12,15 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cursive::views::{Dialog, TextView};
+use smbuilder::ui::*;
 
 fn main() {
-    let mut siv = cursive::default();
-
-    siv.add_layer(Dialog::around(
-        TextView::new("Hello, World!")
-    ).title("Cursive")
-     .button("Exit", |s| s.quit()));
-
-    siv.run();
+    let app = App::new();
+    app.run();
 }
