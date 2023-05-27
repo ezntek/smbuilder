@@ -20,15 +20,26 @@ use std::{fs, os::unix::prelude::PermissionsExt, path::PathBuf};
 pub use builder::*;
 pub use types::*;
 
-fn make_file_executable(path: PathBuf) {
-    let file_permissions = fs::metadata(&path)
-        .expect("getting the metadata of the file failed!")
-        .permissions();
-
-    fs::set_permissions(
-        &path,
-        fs::Permissions::from_mode(
-            file_permissions.mode() + 0o111 // this is the equivalent of a chmod +x.
+fn make_file_executable(path: &PathBuf) -> Result<(), String> {
+    let file_metadata = match fs::metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(e) => return Err(
+            format!("failed to get the metadata of the file: {} at path {}",
+                    e.to_string(),
+                    &path.display())
         )
-    ).expect(format!("Setting the file permissions from {} to {} failed!", file_permissions.mode(), file_permissions.mode()+0o111).as_str())
+    };
+
+    match fs::set_permissions(
+        &path,
+    fs::Permissions::from_mode(
+            file_metadata.permissions().mode() + 0o111 // equivalent of a chmod +x.
+        )
+    ) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(
+            format!("failed to set permissions on the file: {}",
+                    &path.display())
+        )
+    }
 }

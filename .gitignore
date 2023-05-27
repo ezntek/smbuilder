@@ -8,10 +8,4 @@
 # already existing elements were commented out
 
 #/target
-
-/subprojects
-build
-builddir
-subprojects/blueprint-compiler.wrap
-/ui_xml
-/subprojects/blueprint-compiler
+.vscode

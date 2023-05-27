@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+pub mod build_select;
 
 use cursive::{
     traits::*,
@@ -31,6 +32,10 @@ pub enum CurrentMenu {
 use Action::*;
 use CurrentMenu::*;
 
+trait SmbuilderUiView {
+    fn setup_ui() -> Box<dyn View>;
+}
+
 pub struct App {
     pub state: CurrentMenu,
 }
@@ -42,6 +47,10 @@ impl App {
             'q',
             |s| s.quit()
         )
+    }
+
+    fn setup_uis(&self, s: &mut CursiveRunnable) {
+        
     }
 
     // nice public functions
@@ -56,9 +65,9 @@ impl App {
         
         // run some setup functions
         self.setup_global_callbacks(&mut siv);
+        self.setup_uis(&mut siv);
 
-        // some app logic
-
+        // run
         siv.run();
     }
 }
