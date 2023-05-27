@@ -1,5 +1,5 @@
 // Copyright 2023 Eason Qin <eason@ezntek.com>.
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -19,8 +19,10 @@ extern crate derive_builder;
 pub mod builder;
 pub mod ui;
 
+#[allow(unused_imports)] // used in a macro
 use colored::Colorize;
-use serde::{Deserialize,Serialize};
+
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -28,7 +30,7 @@ pub enum Region {
     #[default]
     US,
     EU,
-    JP
+    JP,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -36,7 +38,6 @@ pub struct Rom {
     pub region: Region,
     pub path: PathBuf,
 }
-
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Repo {
@@ -50,9 +51,8 @@ pub struct Repo {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Makeopt {
     pub key: String,
-    pub value: String
+    pub value: String,
 }
-
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Datapack {
