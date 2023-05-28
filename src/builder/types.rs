@@ -14,11 +14,55 @@
 
 use super::{build::get_makeopts_string, make_file_executable};
 use crate::*;
-use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
+
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub enum Region {
+    #[default]
+    US,
+    EU,
+    JP,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Rom {
+    pub region: Region,
+    pub path: PathBuf,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Repo {
+    pub name: String,
+    pub url: String,
+    pub branch: String,
+    pub supports_packs: bool,
+    pub supports_textures: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Makeopt {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Datapack {
+    pub label: String,
+    pub path: PathBuf,
+    pub enabled: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct TexturePack {
+    pub path: PathBuf,
+    pub enabled: bool,
+}
 
 #[derive(Default, Builder, Debug, Deserialize, Serialize)]
 #[builder(setter(into))]
@@ -28,7 +72,8 @@ pub struct Spec {
     pub jobs: u8,
     pub name: String,
     pub additional_makeopts: Vec<Makeopt>,
-    pub packs: Option<Vec<Datapack>>,
+    pub texture_pack: TexturePack,
+    pub packs: Vec<Datapack>,
 }
 
 impl Spec {

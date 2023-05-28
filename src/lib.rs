@@ -22,45 +22,6 @@ pub mod ui;
 #[allow(unused_imports)] // used in a macro
 use colored::Colorize;
 
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-pub enum Region {
-    #[default]
-    US,
-    EU,
-    JP,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-pub struct Rom {
-    pub region: Region,
-    pub path: PathBuf,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-pub struct Repo {
-    pub name: String,
-    pub url: String,
-    pub branch: String,
-    pub supports_packs: bool,
-    pub supports_textures: bool,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-pub struct Makeopt {
-    pub key: String,
-    pub value: String,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-pub struct Datapack {
-    pub label: String,
-    pub path: PathBuf,
-    pub enabled: bool,
-}
-
 #[macro_export]
 macro_rules! log_err {
     ($text:literal) => {

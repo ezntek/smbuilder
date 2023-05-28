@@ -18,18 +18,23 @@ use super::*;
 use crate::builder::Spec;
 use cursive::{views::*, Cursive};
 
-struct BuildSelectView {
+#[derive(Default)]
+pub struct BuildSelectView {
     builds: HashMap<String, Spec>,
 }
 
-fn ui_play_build(s: &mut Cursive) {}
-fn ui_edit_build(s: &mut Cursive) {}
-fn ui_info_build(s: &mut Cursive) {}
-fn ui_new_build(s: &mut Cursive) {}
-fn ui_del_build(s: &mut Cursive) {}
+fn ui_buildselect_play_build(s: &mut Cursive) {}
+fn ui_buildselect_edit_build(s: &mut Cursive) {}
+fn ui_buildselect_info_build(s: &mut Cursive) {}
+fn ui_buildselect_new_build(s: &mut Cursive) {}
+fn ui_buildselect_del_build(s: &mut Cursive) {}
 
 impl BuildSelectView {
-    fn populate_builds(&mut self, builds: Vec<Spec>) {
+    pub fn new() -> Self {
+        BuildSelectView::default()
+    }
+
+    pub fn populate_builds(&mut self, builds: Vec<Spec>) {
         for build in builds {
             self.builds.insert(build.name.clone(), build);
         }
@@ -38,20 +43,33 @@ impl BuildSelectView {
 
 impl SmbuilderUiView for BuildSelectView {
     fn setup_ui(&self) -> Box<dyn View> {
-        let select_view = SelectView::<String>::new().with_name("select build");
+        let mut select_view = SelectView::<String>::new();
 
-        let resizable_selectview = ResizedView::with_fixed_size((10, 5), select_view);
+        let builds_keys = self.builds.keys();
+        if builds_keys.len() == 0 {
+            select_view.add_item_str("There are no builds!")
+        } else {
+            select_view.add_all_str(self.builds.keys());
+        }
+        let scroll_selectview = select_view.scrollable();
+
+        let resizable_selectview = ResizedView::with_max_size((20, 10), scroll_selectview);
 
         let side_btns = LinearLayout::vertical()
-            .child(Button::new("Play", ui_play_build))
-            .child(Button::new("Edit", ui_edit_build))
-            .child(Button::new("Info", ui_info_build))
-            .child(Button::new("Delete", ui_del_build))
+            .child(Button::new("Play", ui_buildselect_play_build))
+            .child(Button::new("Edit", ui_buildselect_edit_build))
+            .child(Button::new("Info", ui_buildselect_info_build))
+            .child(Button::new("Delete", ui_buildselect_del_build))
             .child(
-                DummyView, // cheap spacer
+                DummyView.min_height(2), // cheap spacer
             )
-            .child(Button::new("New", ui_new_build));
+            .child(Button::new("New", ui_buildselect_new_build));
 
-        Box::new(resizable_selectview)
+        let view = LinearLayout::horizontal()
+            .child(resizable_selectview)
+            .child(DummyView.min_width(4))
+            .child(side_btns);
+
+        Box::new(view)
     }
 }

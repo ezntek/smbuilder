@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::Makeopt;
+use super::Makeopt;
 use std::{
     fs,
     io::{BufRead, BufReader, Write},

@@ -11,9 +11,16 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+pub mod build_new;
 pub mod build_select;
 
-use cursive::{traits::*, views, CursiveRunnable};
+use cursive::{
+    event::Event,
+    traits::*,
+    views::{self, Dialog, DummyView},
+    CursiveRunnable,
+};
 
 pub enum Action {
     Play,
@@ -23,8 +30,12 @@ pub enum Action {
 
 use Action::*;
 
+use self::build_select::BuildSelectView;
+
 trait SmbuilderUiView {
-    fn setup_ui(&self) -> Box<dyn View>;
+    fn setup_ui(&self) -> Box<dyn View> {
+        Box::new(DummyView)
+    }
 }
 
 #[derive(Default)]
@@ -33,10 +44,16 @@ pub struct App {}
 impl App {
     // ui related setup functions
     fn setup_global_callbacks(&self, s: &mut CursiveRunnable) {
-        s.add_global_callback('q', |s| s.quit())
+        s.add_global_callback('q', |s| s.quit());
+        s.add_global_callback(Event::Key(cursive::event::Key::Esc), |s| s.quit());
     }
 
-    fn setup_uis(&self, s: &mut CursiveRunnable) {}
+    fn setup_uis(&self, s: &mut CursiveRunnable) {
+        let view = BuildSelectView::default().setup_ui();
+        let dlg = Dialog::around(view).title("smbuilder");
+
+        s.add_layer(dlg);
+    }
 
     // nice public functions
     pub fn new() -> App {
