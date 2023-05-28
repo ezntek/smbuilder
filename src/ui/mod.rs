@@ -38,6 +38,64 @@ trait SmbuilderUiView {
     }
 }
 
+trait SmbuilderDialog {
+    fn setup_dlg(&self) -> Box<Dialog> {
+        Box::new(Dialog::around(DummyView))
+    }
+}
+
+trait StateManagedSmbuilderDialog<T>
+where
+    T: Clone + Copy,
+{
+    #[allow(unused_variables)]
+    fn setup_dlg(&self, mgr: &mut DialogsStateManager<T>) -> Box<Dialog> {
+        Box::new(Dialog::around(DummyView))
+    }
+}
+
+pub struct DialogsStateManager<T>
+where
+    T: Clone + Copy,
+{
+    curr_state: (usize, T),
+    states_order: Vec<T>,
+}
+
+impl<T> DialogsStateManager<T>
+where
+    T: Clone + Copy,
+{
+    pub fn new(default: T, default_idx: usize, order: Vec<T>) -> DialogsStateManager<T> {
+        DialogsStateManager {
+            curr_state: (default_idx, default),
+            states_order: order,
+        }
+    }
+
+    pub fn prev(&mut self) {
+        let new_idx = self.curr_state.0 - 1;
+        self.curr_state = (new_idx, self.states_order[new_idx])
+    }
+
+    pub fn next(&mut self) {
+        let new_idx = self.curr_state.0 + 1;
+        self.curr_state = (new_idx, self.states_order[new_idx])
+    }
+
+    pub fn set_state(&mut self, new_idx: usize) {
+        self.curr_state = (new_idx, self.states_order[new_idx])
+    }
+
+    pub fn get_state_idx(&self) -> usize {
+        self.curr_state.0
+    }
+
+    pub fn get_state_value(&self) -> T {
+        self.curr_state.1
+    }
+}
+
 #[derive(Default)]
 pub struct App {}
 

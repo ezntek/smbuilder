@@ -13,35 +13,58 @@
 // limitations under the License.
 
 use super::*;
-use crate::builder::{Datapack, Repo, Spec, TexturePack};
-use cursive::{views::*, Cursive};
+use crate::builder::Repo;
+use cursive::views::*;
 
-#[derive(Default)]
-pub struct NameTexturePackSelectDialog {
-    name: String,
-    texture_pack: TexturePack,
+fn build_new_state_manager__emit_action(action: BuildNewDialogAction) {}
+
+#[derive(Default, Copy, Clone)]
+enum SpecSelectionStage {
+    #[default]
+    Repo,
+    Rom,
+    Packs,
+    Name,
+    CompilerOptions,
 }
 
-impl NameTexturePackSelectDialog {
+enum BuildNewDialogAction {
+    Quit,
+    Back,
+    Next,
+}
+
+#[derive(Default)]
+pub struct RepoSelectDialog {
+    repos: Vec<Repo>,
+    selected_repo: Option<Repo>,
+}
+
+impl RepoSelectDialog {
     pub fn new() -> Self {
-        NameTexturePackSelectDialog::default()
+        RepoSelectDialog::default()
+    }
+
+    pub fn populate_repos() {}
+}
+
+impl SmbuilderUiView for RepoSelectDialog {
+    fn setup_ui(&self) -> Box<dyn View> {
+        let scrollable_select_view = SelectView::<String>::new().scrollable();
+
+        Box::new(DummyView)
     }
 }
 
-impl SmbuilderUiView for NameTexturePackSelectDialog {
-    fn setup_ui(&self) -> Box<dyn View> {
-        // custom name row
-        let custom_name_editview = EditView::new();
-        let custom_name_label = TextView::new("(OPTIONAL) give it a name: ");
+impl StateManagedSmbuilderDialog<SpecSelectionStage> for RepoSelectDialog {
+    fn setup_dlg(&self, mgr: &mut DialogsStateManager<SpecSelectionStage>) -> Box<Dialog> {
+        let dlg = Dialog::around(self.setup_ui())
+            .button("Quit", |s| {
+                let _ = s.pop_layer(); // pop the dialog off and discarding the dialog
+            })
+            .button("Back", |_s| mgr.prev())
+            .button("Next", |_s| mgr.next());
 
-        let custom_name_row = LinearLayout::horizontal()
-            .child(custom_name_label)
-            .child(custom_name_editview);
-
-        // texture packs row
-
-        let view = LinearLayout::vertical().child(custom_name_row);
-
-        Box::new(view)
+        Box::new(dlg)
     }
 }

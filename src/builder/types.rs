@@ -83,7 +83,7 @@ impl Spec {
             Err(e) => return Err(format!("Failed to read {}: {}", &path.display(), e)),
         };
 
-        match toml::from_str(&file_string) {
+        match serde_yaml::from_str(&file_string) {
             Ok(s) => s,
             Err(e) => Err(format!(
                 "Failed to parse {} into a toml: {}",

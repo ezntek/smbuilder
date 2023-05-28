@@ -47,7 +47,7 @@ impl Smbuilder {
             .expect("creating the smbuilder.toml file failed!");
 
         match smbuilder_toml_file.write_all(
-            toml::to_string(&self.spec)
+            serde_yaml::to_string(&self.spec)
                 .unwrap() // we'd want to panic if this breaks here anyway ._.
                 .as_bytes(),
         ) {
