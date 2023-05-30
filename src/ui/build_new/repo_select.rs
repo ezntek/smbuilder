@@ -39,3 +39,14 @@ impl SmbuilderDialog for RepoSelectDialog {
         Box::new(dlg)
     }
 }
+
+impl From<SpecSelectionStage> for Option<RepoSelectDialog> {
+    fn from(val: SpecSelectionStage) -> Self {
+        use SpecSelectionStage::*;
+
+        match val {
+            Repo => Some(RepoSelectDialog::new()),
+            _ => None,
+        }
+    }
+}
