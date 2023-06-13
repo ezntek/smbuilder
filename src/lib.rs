@@ -12,33 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[allow(unused_imports)]
-#[macro_use]
-extern crate derive_builder;
+mod build;
+mod types;
 
-pub mod builder;
-pub mod ui;
+pub mod prelude;
 
-#[allow(unused_imports)] // used in a macro
-use colored::Colorize;
+use std::{fs, os::unix::prelude::PermissionsExt, path::Path};
 
-#[macro_export]
-macro_rules! log_err {
-    ($text:literal) => {
-        println!("{}{}", "Err: ".bold().red().as_str(), $text);
+pub fn make_file_executable(path: &Path) -> Result<(), String> {
+    let file_metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(e) => {
+            return Err(format!(
+                "failed to get the metadata of the file: {} at path {}",
+                e,
+                &path.display()
+            ))
+        }
     };
-}
 
-#[macro_export]
-macro_rules! log_warn {
-    ($text:literal) => {
-        println!("{}{}", "Warn: ".bold().yellow().as_str(), $text);
-    };
-}
-
-#[macro_export]
-macro_rules! log_info {
-    ($text:literal) => {
-        println!("{}{}", "Err: ".bold().blue().as_str(), $text);
-    };
+    match fs::set_permissions(
+        path,
+        fs::Permissions::from_mode(
+            file_metadata.permissions().mode() + 0o111, // equivalent of a chmod +x.
+        ),
+    ) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!(
+            "failed to set permissions on the file at {}: {}",
+            &path.display(),
+            e
+        )),
+    }
 }

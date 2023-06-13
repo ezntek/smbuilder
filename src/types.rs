@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::{build::get_makeopts_string, make_file_executable};
-use crate::*;
+use crate::prelude::{get_makeopts_string, make_file_executable};
+use derive_builder::Builder;
 use std::fmt::Debug;
 use std::fs;
 use std::io::Write;

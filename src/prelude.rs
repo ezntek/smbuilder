@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use smbuilder::ui::*;
-
-fn main() {
-    let app = App::new();
-    app.run();
-}
+pub use crate::build::*;
+pub use crate::make_file_executable;
+pub use crate::types::*;
