@@ -86,7 +86,7 @@ impl Spec {
         match serde_yaml::from_str(&file_string) {
             Ok(s) => s,
             Err(e) => Err(format!(
-                "Failed to parse {} into a toml: {}",
+                "Failed to parse {} into a yaml: {}",
                 &path.display(),
                 e
             )),

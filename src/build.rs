@@ -43,16 +43,16 @@ impl Smbuilder {
     }
 
     pub fn setup_build(&mut self) {
-        let mut smbuilder_toml_file = fs::File::create(self.base_dir.join("smbuilder.toml"))
-            .expect("creating the smbuilder.toml file failed!");
+        let mut smbuilder_yaml_file = fs::File::create(self.base_dir.join("smbuilder.yaml"))
+            .expect("creating the smbuilder.yaml file failed!");
 
-        match smbuilder_toml_file.write_all(
+        match smbuilder_yaml_file.write_all(
             serde_yaml::to_string(&self.spec)
                 .unwrap() // we'd want to panic if this breaks here anyway ._.
                 .as_bytes(),
         ) {
             Ok(_) => (),
-            Err(_) => panic!("Failed to write the build specification to the smbuilder.toml!"),
+            Err(_) => panic!("Failed to write the build specification to the smbuilder.yaml!"),
         }
 
         let repo_dir = &self.base_dir.join(&self.spec.repo.name);
