@@ -1,9 +1,11 @@
+name: something
+
 rom:
   region: us
   path: ./rom.z64
 
 repo:
-  name: sm64ex
+  name: da-repo
   url: "https://github.com/sm64pc/sm64ex"
   branch: nightly
   supports_packs: true

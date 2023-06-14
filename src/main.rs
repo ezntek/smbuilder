@@ -13,7 +13,7 @@ fn main() {
 
     let spec = Spec::from_file(args.file).unwrap();
 
-    let mut builder = Smbuilder::new(spec, PathBuf::from("./"));
+    let builder = Smbuilder::new(spec, PathBuf::from("./"));
 
     builder.build(Some("info: ")).unwrap();
 }

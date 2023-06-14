@@ -1,4 +1,4 @@
-pub mod build;
+pub mod builder;
 pub mod error;
 pub mod types;
 
@@ -6,14 +6,29 @@ pub mod prelude;
 
 use std::{fs, os::unix::prelude::PermissionsExt, path::Path};
 
-pub fn make_file_executable(path: &Path) -> Result<(), String> {
+use error::SmbuilderError;
+use prelude::Makeopt;
+
+pub fn get_makeopts_string(makeopts: &[Makeopt]) -> String {
+    let mut retval = String::from("");
+
+    for opt in makeopts.iter() {
+        retval.push_str(format!("{}={} ", opt.key, opt.value).as_str());
+    }
+
+    retval
+}
+
+pub fn make_file_executable(path: &Path) -> Result<(), SmbuilderError> {
     let file_metadata = match fs::metadata(path) {
         Ok(metadata) => metadata,
         Err(e) => {
-            return Err(format!(
-                "failed to get the metadata of the file: {} at path {}",
-                e,
-                &path.display()
+            return Err(SmbuilderError::new(
+                Some(Box::new(e)),
+                format!(
+                    "failed to get the metadata of the file at {}",
+                    &path.display()
+                ),
             ))
         }
     };
@@ -25,10 +40,12 @@ pub fn make_file_executable(path: &Path) -> Result<(), String> {
         ),
     ) {
         Ok(_) => Ok(()),
-        Err(e) => Err(format!(
-            "failed to set permissions on the file at {}: {}",
-            &path.display(),
-            e
+        Err(e) => Err(SmbuilderError::new(
+            Some(Box::new(e)),
+            format!(
+                "failed to set permissions on the file at {}",
+                &path.display(),
+            ),
         )),
     }
 }

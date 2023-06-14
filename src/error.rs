@@ -18,7 +18,13 @@ impl SmbuilderError {
 
 impl Display for SmbuilderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", "error: ".bold().red(), self.description)
+        let displayed_string = if let Some(e) = &self.cause {
+            format!("{}{}: {}", "error: ".bold().red(), self.description, *e)
+        } else {
+            format!("{}{}", "error: ".bold().red(), self.description,)
+        };
+
+        write!(f, "{}", displayed_string)
     }
 }
 
