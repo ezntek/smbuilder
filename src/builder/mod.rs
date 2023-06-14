@@ -53,8 +53,6 @@ pub fn get_needed_setup_tasks<P: AsRef<Path>>(
         needed_stages.push(CreateBuildScript)
     }
 
-    println!("{:?}", needed_stages);
-
     // return
     needed_stages
 }

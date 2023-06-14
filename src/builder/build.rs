@@ -281,44 +281,5 @@ impl Smbuilder {
         }
 
         self.symlink_executable(self.base_dir.join(&self.spec.repo.name))
-
-        /*
-        let reader = BufReader::new(child.stdout.take().unwrap());
-
-        for line in reader.lines() {
-
-        }
-
-        let exit_status = match child.wait() {
-            Ok(exit_status) => exit_status,
-            Err(e) => {
-                return Err(SmbuilderError::new(
-                    Some(Box::new(e)),
-                    "failed to wait on the build process!",
-                ))
-            }
-        };
-
-        let exit_status_code = if let Some(e_code) = exit_status.code() {
-            e_code
-        } else {
-            return Err(SmbuilderError::new(
-                None,
-                "failed to build the executable: probably terminated by a signal.",
-            ));
-        };
-
-        if exit_status_code != 0 {
-            return Err(SmbuilderError::new(
-                None,
-                format!(
-                    "failed to build the executable with exit code {}",
-                    &exit_status_code
-                ),
-            ));
-        }
-
-        self.symlink_executable(self.base_dir.join(&self.spec.repo.name))
-        */
     }
 }
