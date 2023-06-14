@@ -1,4 +1,6 @@
+use crate::prelude::Spec;
 use crate::{error::SmbuilderError, make_file_executable};
+use std::sync::{Arc, Mutex};
 use std::{
     fs,
     io::{BufRead, BufReader, Write},
@@ -6,8 +8,6 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
-
-use crate::prelude::Spec;
 
 use super::{get_needed_setup_tasks, SmbuilderSetupStage};
 
@@ -79,13 +79,8 @@ impl Smbuilder {
     }
 
     fn clone_repo(&self) -> Result<PathBuf, SmbuilderError> {
-        let name = if let Some(n) = &self.spec.name {
-            n
-        } else {
-            &self.spec.repo.name
-        };
-
-        let repo_dir = self.base_dir.join(name);
+        let repo_name = &self.spec.repo.name;
+        let repo_dir = self.base_dir.join(repo_name);
 
         match git2::build::RepoBuilder::new()
             .branch(&self.spec.repo.branch)
@@ -217,19 +212,16 @@ impl Smbuilder {
         }
     }
 
-    pub fn build<S>(&self, cmdout_prefix: Option<S>) -> Result<(), SmbuilderError>
-    where
-        S: AsRef<str> + std::fmt::Display,
-    {
+    pub fn build(&self, cmdout_prefix: Option<String>) -> Result<(), SmbuilderError> {
         // set the build up first
         self.setup_build();
 
         // build
-        let mut build_cmd = Command::new(&self.base_dir.join("build.sh"));
+        let mut build_cmd = Command::new(self.base_dir.join("build.sh"));
 
-        let mut spawned_cmd = build_cmd.stdin(Stdio::piped()).spawn();
-        let child = match &mut spawned_cmd {
-            Ok(c) => c,
+        let spawned_cmd = build_cmd.stdin(Stdio::piped()).spawn();
+        let child = match spawned_cmd {
+            Ok(c) => Arc::new(Mutex::new(c)),
             Err(_) => {
                 return Err(SmbuilderError::new(
                     None, // FIXME: fix passing the OsError into this
@@ -238,19 +230,63 @@ impl Smbuilder {
             }
         };
 
+        let child_thread = child.clone();
+
+        std::thread::spawn(move || {
+            let mut child = child_thread.lock().unwrap();
+            let stdout = child.stdout.take().unwrap();
+            let reader = BufReader::new(stdout);
+
+            for line in reader.lines() {
+                let ln = match line {
+                    Ok(line) => line,
+                    Err(_) => break, // exit when there is no more output
+                };
+
+                if let Some(c) = &cmdout_prefix {
+                    println!("{}{}", c, ln)
+                } else {
+                    println!("{}", ln)
+                }
+            }
+        });
+
+        let exit_status = match child.lock().unwrap().wait() {
+            Ok(exit_status) => exit_status,
+            Err(e) => {
+                return Err(SmbuilderError::new(
+                    Some(Box::new(e)),
+                    "failed to wait on the build process!",
+                ))
+            }
+        };
+
+        let exit_status_code = if let Some(e_code) = exit_status.code() {
+            e_code
+        } else {
+            return Err(SmbuilderError::new(
+                None,
+                "failed to build the executable: probably terminated by a signal.",
+            ));
+        };
+
+        if exit_status_code != 0 {
+            return Err(SmbuilderError::new(
+                None,
+                format!(
+                    "failed to build the executable with exit code {}",
+                    &exit_status_code
+                ),
+            ));
+        }
+
+        self.symlink_executable(self.base_dir.join(&self.spec.repo.name))
+
+        /*
         let reader = BufReader::new(child.stdout.take().unwrap());
 
         for line in reader.lines() {
-            let ln = match line {
-                Ok(line) => line,
-                Err(_) => break, // exit when there is no more output
-            };
 
-            if let Some(c) = &cmdout_prefix {
-                println!("{}{}", c, ln)
-            } else {
-                println!("{}", ln)
-            }
         }
 
         let exit_status = match child.wait() {
@@ -283,6 +319,6 @@ impl Smbuilder {
         }
 
         self.symlink_executable(self.base_dir.join(&self.spec.repo.name))
+        */
     }
 }
-// working really hard i see :) <3 good luck ly

@@ -35,6 +35,11 @@ pub fn get_needed_setup_tasks<P: AsRef<Path>>(
         needed_stages.push(WriteSpec)
     }
 
+    // check if the repo is cloned
+    if !base_dir.join(&spec.repo.name).exists() {
+        needed_stages.push(CloneRepo)
+    }
+
     // check if the rom exists
     if !base_dir
         .join(format!("baserom.{}.z64", spec.rom.region.to_string()))
@@ -43,15 +48,12 @@ pub fn get_needed_setup_tasks<P: AsRef<Path>>(
         needed_stages.push(CopyRom)
     }
 
-    // check if the repo is cloned
-    if !base_dir.join(&spec.repo.name).exists() {
-        needed_stages.push(CloneRepo)
-    }
-
     // check if the build script exists
     if !base_dir.join("build.sh").exists() {
         needed_stages.push(CreateBuildScript)
     }
+
+    println!("{:?}", needed_stages);
 
     // return
     needed_stages

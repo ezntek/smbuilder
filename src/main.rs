@@ -15,5 +15,5 @@ fn main() {
 
     let builder = Smbuilder::new(spec, PathBuf::from("./"));
 
-    builder.build(Some("info: ")).unwrap();
+    builder.build(Some("info: ".to_string())).unwrap();
 }

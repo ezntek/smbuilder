@@ -2,6 +2,9 @@
 **/target
 /doc*
 
+# for testing smbuilder
+/something
+/rom.z64
 
 # Added by cargo
 #
