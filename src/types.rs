@@ -1,20 +1,6 @@
-// Copyright 2023 Eason Qin <eason@ezntek.com>.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//  http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 use crate::prelude::{get_makeopts_string, make_file_executable};
 use derive_builder::Builder;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -22,7 +8,72 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use crate::prelude::Makeopt;
+
+    use super::{Region, Repo, Rom, Spec, SpecBuilder};
+
+    #[test]
+    fn test_deser() {
+        let file_spec = "
+rom:
+    region: us
+    path: ./rom.z64
+      
+repo:
+    name: sm64ex
+    url: 'https://github.com/sm64pc/sm64ex'
+    branch: nightly
+    supports_packs: false
+    supports_textures: false
+    
+additional_makeopts:
+    - key: DISCORDRPC
+      value: '0'
+";
+
+        let spec = serde_yaml::from_str::<Spec>(file_spec).unwrap();
+        println!("{:?}", spec);
+    }
+
+    #[test]
+    fn test_ser() {
+        let r = Rom {
+            region: Region::EU,
+            path: PathBuf::from("./rom.z64"),
+        };
+
+        let re = Repo {
+            name: String::from("rastarstarst"),
+            url: String::from("https://github.com/my/repo.link"),
+            branch: String::from("mybranch"),
+            supports_packs: false,
+            supports_textures: false,
+        };
+
+        let s = Spec {
+            rom: r,
+            repo: re,
+            jobs: None,
+            name: None,
+            additional_makeopts: Some(vec![Makeopt {
+                key: "hi".to_owned(),
+                value: "hii".to_owned(),
+            }]),
+            texture_pack: None,
+            packs: None,
+        };
+
+        let res = serde_yaml::to_string(&s).unwrap();
+        println!("{}", res);
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Region {
     #[default]
     US,
@@ -69,31 +120,39 @@ pub struct TexturePack {
 pub struct Spec {
     pub rom: Rom,
     pub repo: Repo,
-    pub jobs: u8,
-    pub name: String,
-    pub additional_makeopts: Vec<Makeopt>,
-    pub texture_pack: TexturePack,
-    pub packs: Vec<Datapack>,
+    pub jobs: Option<u8>,
+    pub name: Option<String>,
+    pub additional_makeopts: Option<Vec<Makeopt>>,
+    pub texture_pack: Option<TexturePack>,
+    pub packs: Option<Vec<Datapack>>,
 }
 
 impl Spec {
-    pub fn from_file(path: PathBuf) -> Result<Spec, String> {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Spec, String> {
         let file_string = match fs::read_to_string(&path) {
             Ok(s) => s,
-            Err(e) => return Err(format!("Failed to read {}: {}", &path.display(), e)),
+            Err(e) => return Err(format!("Failed to read the file: {}", e)),
         };
 
-        match serde_yaml::from_str(&file_string) {
+        println!("\nFILE:\n\n{}\n", &file_string);
+
+        let retval = match serde_yaml::from_str::<Spec>(&file_string) {
             Ok(s) => s,
-            Err(e) => Err(format!(
-                "Failed to parse {} into a yaml: {}",
-                &path.display(),
-                e
-            )),
-        }
+            Err(e) => return Err(format!("Failed to parse the file into a yaml: {}", e)),
+        };
+
+        Ok(retval)
     }
 
     pub fn get_build_script(&self, repo_path: &Path) -> String {
+        let makeopts_string = if let Some(makeopts) = &self.additional_makeopts {
+            get_makeopts_string(makeopts)
+        } else {
+            String::new()
+        };
+
+        let jobs = if let Some(j) = self.jobs { j } else { 2 };
+
         format!(
             "
 #!/bin/sh
@@ -105,8 +164,8 @@ echo \"BE SAVED.\"
 make -C {} {} -j{}
         ",
             repo_path.display(),
-            get_makeopts_string(&self.additional_makeopts),
-            self.jobs
+            makeopts_string,
+            jobs
         )
     }
 

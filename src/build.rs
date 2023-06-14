@@ -1,22 +1,8 @@
-// Copyright 2023 Eason Qin <eason@ezntek.com>.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//  http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-use crate::prelude::Makeopt;
+use crate::{error::SmbuilderError, prelude::Makeopt};
 use std::{
     fs,
     io::{BufRead, BufReader, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
 };
 
@@ -38,80 +24,138 @@ pub struct Smbuilder {
 }
 
 impl Smbuilder {
-    pub fn new(spec: Spec, base_dir: PathBuf) -> Smbuilder {
+    pub fn new<P: AsRef<Path>>(spec: Spec, root_dir: P) -> Smbuilder {
+        let base_dir_name = if let Some(name) = &spec.name {
+            name
+        } else {
+            &spec.repo.name
+        };
+
+        let base_dir = root_dir.as_ref().join(base_dir_name);
+
         Smbuilder { spec, base_dir }
     }
 
-    pub fn setup_build(&mut self) {
-        let mut smbuilder_yaml_file = fs::File::create(self.base_dir.join("smbuilder.yaml"))
-            .expect("creating the smbuilder.yaml file failed!");
-
-        match smbuilder_yaml_file.write_all(
-            serde_yaml::to_string(&self.spec)
-                .unwrap() // we'd want to panic if this breaks here anyway ._.
-                .as_bytes(),
-        ) {
-            Ok(_) => (),
-            Err(_) => panic!("Failed to write the build specification to the smbuilder.yaml!"),
-        }
-
-        let repo_dir = &self.base_dir.join(&self.spec.repo.name);
-
-        match git2::build::RepoBuilder::new()
-            .branch(&self.spec.repo.branch)
-            .clone(&self.spec.repo.url, repo_dir)
-        {
-            Ok(_) => (),
-            Err(_) => panic!(
-                "Failed to clone {} into {}!",
-                &self.spec.repo.url,
-                repo_dir.display()
-            ),
-        }
-
-        match fs::copy(&self.spec.rom.path, repo_dir) {
-            Ok(_) => (),
-            Err(_) => panic!(
-                "Failed to copy {} into {}!",
-                &self.spec.rom.path.display(),
-                repo_dir.display()
-            ),
-        }
-
-        let mut build_script = match fs::File::create(self.base_dir.join("build.sh")) {
-            Ok(file) => file,
-            Err(_) => panic!(
-                "failed to create {}!",
-                &self.base_dir.join("build.sh").display()
-            ),
+    fn write_spec(&self) -> Result<(), SmbuilderError> {
+        let file_path = self.base_dir.join("smbuilder.yaml");
+        let mut smbuilder_specfile = match fs::File::create(&file_path) {
+            Ok(f) => f,
+            Err(e) => {
+                return Err(SmbuilderError::new(
+                    Some(Box::new(e)),
+                    format!(
+                        "failed to create the spec file at {}: ",
+                        &file_path.display()
+                    ),
+                ))
+            }
         };
 
-        match build_script.write_all(self.spec.get_build_script(repo_dir).as_bytes()) {
+        match smbuilder_specfile.write_all(serde_yaml::to_string(&self.spec).unwrap().as_bytes()) {
             Ok(_) => (),
-            Err(_) => panic!(
-                "failed to write to the build script at {}!",
-                &self.base_dir.join("build.sh").display()
-            ),
+            Err(e) => {
+                return Err(SmbuilderError::new(
+                    Some(Box::new(e)),
+                    format!(
+                        "failed to write the spec into the file at {}: ",
+                        &file_path.display()
+                    ),
+                ))
+            }
+        };
+
+        Ok(())
+    }
+
+    fn clone_repo(&self) -> Result<PathBuf, SmbuilderError> {
+        let repo_dir = self.base_dir.join(&self.spec.repo.name);
+
+        Ok(repo_dir) // FIXME: no cloning logic yet
+    }
+
+    fn copy_rom<P: AsRef<Path>>(&self, repo_dir: P) -> Result<(), SmbuilderError> {
+        match fs::copy(&self.spec.rom.path, repo_dir.as_ref()) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(SmbuilderError::new(
+                Some(Box::new(e)),
+                format!(
+                    "failed to copy the rom from {} to {}: ",
+                    &self.spec.rom.path.display(),
+                    repo_dir.as_ref().display(),
+                ),
+            )),
         }
     }
 
-    pub fn build<S>(&self, cmdout_prefix: Option<S>) -> Result<(), &str>
+    fn create_build_script<P: AsRef<Path>>(&self, repo_dir: P) -> Result<(), SmbuilderError> {
+        let file_path = self.base_dir.join("build.sh");
+
+        let mut build_script = match fs::File::create(&file_path) {
+            Ok(file) => file,
+            Err(e) => {
+                return Err(SmbuilderError::new(
+                    Some(Box::new(e)),
+                    format!(
+                        "failed to create the build script at {}!",
+                        &file_path.display()
+                    ),
+                ))
+            }
+        };
+
+        match build_script.write_all(self.spec.get_build_script(repo_dir.as_ref()).as_bytes()) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(SmbuilderError::new(
+                Some(Box::new(e)),
+                format!(
+                    "failed to write to the build script at {}!",
+                    &file_path.display()
+                ),
+            )),
+        }
+    }
+
+    fn setup_build(&self) {
+        // write the spec to disk
+        self.write_spec().unwrap();
+
+        // clone the repo
+        let repo_dir = self.clone_repo().unwrap();
+
+        // copy the rom
+        self.copy_rom(&repo_dir).unwrap();
+
+        // create the build script
+        self.create_build_script(&repo_dir).unwrap();
+    }
+
+    pub fn build<S>(&self, cmdout_prefix: Option<S>) -> Result<(), SmbuilderError>
     where
         S: AsRef<str> + std::fmt::Display,
     {
+        // set the build up first
+        self.setup_build();
+
+        // build
         let mut build_cmd = Command::new(&self.base_dir.join("build.sh"));
 
-        let child = &mut build_cmd
-            .stdin(Stdio::piped())
-            .spawn()
-            .expect("Failed to spawn the build command!");
+        let mut spawned_cmd = build_cmd.stdin(Stdio::piped()).spawn();
+        let child = match &mut spawned_cmd {
+            Ok(c) => c,
+            Err(_) => {
+                return Err(SmbuilderError::new(
+                    None, // FIXME: fix passing the OsError into this
+                    "Failed to spawn the build command!",
+                ));
+            }
+        };
 
         let reader = BufReader::new(child.stdout.take().unwrap());
 
         for line in reader.lines() {
             let ln = match line {
                 Ok(line) => line,
-                Err(_) => break,
+                Err(_) => break, // exit when there is no more output
             };
 
             if let Some(c) = &cmdout_prefix {
@@ -123,7 +167,10 @@ impl Smbuilder {
 
         match child.wait() {
             Ok(_) => Ok(()),
-            Err(_) => panic!("failed to wait on the build process!"),
+            Err(e) => Err(SmbuilderError::new(
+                Some(Box::new(e)),
+                "failed to wait on the build process!",
+            )),
         }
     }
 }
