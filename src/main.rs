@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
+use colored::Colorize;
 use smbuilder::prelude::*;
 
 #[derive(Parser)]
@@ -15,5 +16,7 @@ fn main() {
 
     let builder = Smbuilder::new(spec, PathBuf::from("./"));
 
-    builder.build(Some("info: ".to_string())).unwrap();
+    builder
+        .build(Some("make: ".to_string().bold().blue().to_string()))
+        .unwrap();
 }

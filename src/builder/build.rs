@@ -1,12 +1,12 @@
+use duct::cmd;
+
 use crate::prelude::Spec;
 use crate::{error::SmbuilderError, make_file_executable};
-use std::sync::{Arc, Mutex};
 use std::{
     fs,
     io::{BufRead, BufReader, Write},
     os::unix::fs::symlink,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
 };
 
 use super::{get_needed_setup_tasks, SmbuilderSetupStage};
@@ -217,69 +217,48 @@ impl Smbuilder {
         self.setup_build();
 
         // build
-        let mut build_cmd = Command::new(self.base_dir.join("build.sh"));
+        let build_cmdout = cmd!(self.base_dir.join("build.sh")).stderr_to_stdout();
 
-        let spawned_cmd = build_cmd.stdin(Stdio::piped()).spawn();
-        let child = match spawned_cmd {
-            Ok(c) => Arc::new(Mutex::new(c)),
-            Err(_) => {
-                return Err(SmbuilderError::new(
-                    None, // FIXME: fix passing the OsError into this
-                    "Failed to spawn the build command!",
-                ));
+        let output = build_cmdout.reader().unwrap(); // FIXME: unwrap
+        let reader = BufReader::new(output);
+
+        for line in reader.lines() {
+            let ln = match line {
+                Ok(line) => line,
+                Err(e) => {
+                    return Err(SmbuilderError::new(
+                        Some(Box::new(e)),
+                        "the build command failed to run",
+                    ))
+                } // exit when there is no more output
+            };
+
+            if let Some(c) = &cmdout_prefix {
+                println!("{}{}", c, ln)
+            } else {
+                println!("{}", ln)
             }
-        };
-
-        let child_thread = child.clone();
-
-        std::thread::spawn(move || {
-            let mut child = child_thread.lock().unwrap();
-            let stdout = child.stdout.take().unwrap();
-            let reader = BufReader::new(stdout);
-
-            for line in reader.lines() {
-                let ln = match line {
-                    Ok(line) => line,
-                    Err(_) => break, // exit when there is no more output
-                };
-
-                if let Some(c) = &cmdout_prefix {
-                    println!("{}{}", c, ln)
-                } else {
-                    println!("{}", ln)
-                }
-            }
-        });
-
-        let exit_status = match child.lock().unwrap().wait() {
-            Ok(exit_status) => exit_status,
-            Err(e) => {
-                return Err(SmbuilderError::new(
-                    Some(Box::new(e)),
-                    "failed to wait on the build process!",
-                ))
-            }
-        };
-
-        let exit_status_code = if let Some(e_code) = exit_status.code() {
-            e_code
-        } else {
-            return Err(SmbuilderError::new(
-                None,
-                "failed to build the executable: probably terminated by a signal.",
-            ));
-        };
-
-        if exit_status_code != 0 {
-            return Err(SmbuilderError::new(
-                None,
-                format!(
-                    "failed to build the executable with exit code {}",
-                    &exit_status_code
-                ),
-            ));
         }
 
+        /*         let exit_status_code = if let Some(e_code) = exit_status.code() {
+                    e_code
+                } else {
+                    return Err(SmbuilderError::new(
+                        None,
+                        "failed to build the executable: probably terminated by a signal.",
+                    ));
+                };
+
+                if exit_status_code != 0 {
+                    return Err(SmbuilderError::new(
+                        None,
+                        format!(
+                            "failed to build the executable with exit code {}",
+                            &exit_status_code
+                        ),
+                    ));
+                }
+        */
         self.symlink_executable(self.base_dir.join(&self.spec.repo.name))
     }
 }
