@@ -1,38 +1,42 @@
-use std::{error::Error, fmt::Display};
+use std::fmt::Display;
 
 use colored::Colorize;
 
-use crate::prelude::{CmdoutSettings, Settings};
 #[derive(Debug)]
-pub struct SmbuilderError {
-    cause: Option<Box<dyn Error>>,
-    description: String,
+pub struct Error {
+    pub cause: Option<Box<dyn std::error::Error>>,
+    pub description: String,
 }
 
-impl SmbuilderError {
-    pub fn new<S: AsRef<str>>(cause: Option<Box<dyn Error>>, description: S) -> Self {
-        SmbuilderError {
+impl Error {
+    pub fn new<S: AsRef<str>>(cause: Option<Box<dyn std::error::Error>>, description: S) -> Self {
+        Error {
             cause,
             description: description.as_ref().to_owned(),
         }
     }
 
-    pub fn pretty_panic(self, settings: &Settings) {
-        let runnable_settings = (*settings).get_runnable();
-        runnable_settings.error(&self.description);
+    /*pub fn pretty_panic(self, settings: &Settings) {
+        let runnable_settings = (*settings).to_runnable();
 
-        let panic_text = if let CmdoutSettings::Silent = settings.cmdout_settings {
-            &self.description
+        let panic_text = if let Some(e) = &self.cause {
+            format!("{}: {}", self.description, *e)
         } else {
-            "panic from a pretty-panic. check error message above."
+            format!("{}", self.description)
         };
 
+        runnable_settings.error(&panic_text);
+
         // goodbye, program ;)
-        panic!("{}", panic_text)
-    }
+        if let CmdoutSettings::Silent = settings.cmdout_settings {
+            panic!("{}", panic_text)
+        } else {
+            panic!("panicked from a pretty-panic: check the error message above.")
+        }
+    }*/
 }
 
-impl Display for SmbuilderError {
+impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let displayed_string = if let Some(e) = &self.cause {
             format!("{}{}: {}", "error: ".bold().red(), self.description, *e)
@@ -44,8 +48,8 @@ impl Display for SmbuilderError {
     }
 }
 
-impl Error for SmbuilderError {
-    fn cause(&self) -> Option<&dyn Error> {
+impl std::error::Error for Error {
+    fn cause(&self) -> Option<&dyn std::error::Error> {
         if let Some(e) = &self.cause {
             Some(&**e)
         } else {
@@ -57,7 +61,7 @@ impl Error for SmbuilderError {
         &self.description
     }
 
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
     }
 }

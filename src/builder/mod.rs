@@ -1,22 +1,23 @@
 pub mod build;
+pub mod traits;
 pub mod types;
 
 pub use build::*;
+pub use traits::*;
 pub use types::*;
 
-use crate::prelude::{Region, Spec};
+use crate::prelude::{Region, RunnableSettings, Spec};
 use std::path::Path;
 
 use self::types::SmbuilderSetupStage;
 
 #[cfg(test)]
 mod tests {
-    use crate::error::SmbuilderError;
+    use crate::error::Error;
 
     #[test]
     fn test_smbuilder_error() {
-        let e: Result<(), SmbuilderError> =
-            Result::Err(SmbuilderError::new(None, "haha test error"));
+        let e: Result<(), Error> = Result::Err(Error::new(None, "haha test error"));
         println!("{}", e.unwrap_err());
     }
 }
@@ -24,6 +25,7 @@ mod tests {
 pub fn get_needed_setup_tasks<P: AsRef<Path>>(
     spec: &Spec,
     base_dir: P,
+    runnable_settings: Box<dyn RunnableSettings>,
 ) -> Vec<SmbuilderSetupStage> {
     use SmbuilderSetupStage::*;
 
@@ -42,6 +44,7 @@ pub fn get_needed_setup_tasks<P: AsRef<Path>>(
 
     // check if the rom exists
     if !base_dir
+        .join(&spec.repo.name)
         .join(format!("baserom.{}.z64", spec.rom.region.to_string()))
         .exists()
     {
@@ -52,6 +55,15 @@ pub fn get_needed_setup_tasks<P: AsRef<Path>>(
     if !base_dir.join("build.sh").exists() {
         needed_stages.push(CreateBuildScript)
     }
+
+    // log
+    let needed_stages_string = needed_stages
+        .iter()
+        .map(|elem| elem.to_string())
+        .collect::<Vec<String>>()
+        .join(", ");
+
+    (*runnable_settings).log_info(&format!("needed tasks: {}", needed_stages_string));
 
     // return
     needed_stages

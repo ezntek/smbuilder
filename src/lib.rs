@@ -7,7 +7,7 @@ pub mod prelude;
 
 use std::{fs, os::unix::prelude::PermissionsExt, path::Path};
 
-use error::SmbuilderError;
+use error::Error;
 use prelude::Makeopt;
 
 pub fn get_makeopts_string(makeopts: &[Makeopt]) -> String {
@@ -20,11 +20,11 @@ pub fn get_makeopts_string(makeopts: &[Makeopt]) -> String {
     retval
 }
 
-pub fn make_file_executable(path: &Path) -> Result<(), SmbuilderError> {
+pub fn make_file_executable(path: &Path) -> Result<(), Error> {
     let file_metadata = match fs::metadata(path) {
         Ok(metadata) => metadata,
         Err(e) => {
-            return Err(SmbuilderError::new(
+            return Err(Error::new(
                 Some(Box::new(e)),
                 format!(
                     "failed to get the metadata of the file at {}",
@@ -41,7 +41,7 @@ pub fn make_file_executable(path: &Path) -> Result<(), SmbuilderError> {
         ),
     ) {
         Ok(_) => Ok(()),
-        Err(e) => Err(SmbuilderError::new(
+        Err(e) => Err(Error::new(
             Some(Box::new(e)),
             format!(
                 "failed to set permissions on the file at {}",

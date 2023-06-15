@@ -1,4 +1,4 @@
-use crate::{error::SmbuilderError, get_makeopts_string};
+use crate::{error::Error, get_makeopts_string};
 use derive_builder::Builder;
 use std::fmt::Debug;
 use std::fs;
@@ -63,21 +63,16 @@ pub struct Spec {
 }
 
 impl Spec {
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Spec, SmbuilderError> {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Spec, Error> {
         let file_string = match fs::read_to_string(&path) {
             Ok(s) => s,
-            Err(e) => {
-                return Err(SmbuilderError::new(
-                    Some(Box::new(e)),
-                    "Failed to read the file",
-                ))
-            }
+            Err(e) => return Err(Error::new(Some(Box::new(e)), "Failed to read the file")),
         };
 
         let retval = match serde_yaml::from_str::<Spec>(&file_string) {
             Ok(s) => s,
             Err(e) => {
-                return Err(SmbuilderError::new(
+                return Err(Error::new(
                     Some(Box::new(e)),
                     "Failed to parse the file into a yaml",
                 ))

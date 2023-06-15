@@ -1,42 +1,36 @@
-use colored::Colorize;
-use duct::cmd;
-
-use crate::prelude::Spec;
-use crate::settings::*;
-use crate::{error::SmbuilderError, make_file_executable};
+use crate::prelude::{Smbuilder, Spec};
+use crate::settings::RunnableSettings;
+use crate::{error::Error, make_file_executable};
 use std::{
     fs,
-    io::{BufRead, BufReader, Write},
-    os::unix::fs::symlink,
+    io::Write,
     path::{Path, PathBuf},
 };
 
-use super::{get_needed_setup_tasks, SmbuilderSetupStage};
-
-pub struct Smbuilder {
-    spec: Spec,
-    base_dir: PathBuf,
-    settings: Settings,
-    runnable_settings: RunnableSettings,
+pub struct SmbuilderWrapper {
+    pub spec: Spec,
+    pub base_dir: PathBuf,
+    pub runnable_settings: Box<dyn RunnableSettings>,
+    builder: Box<dyn Smbuilder>,
 }
 
-impl Smbuilder {
-    pub fn new<P: AsRef<Path>>(spec: Spec, root_dir: P, settings: Settings) -> Smbuilder {
-        let runnable_settings = settings.get_runnable();
+impl SmbuilderWrapper {
+    pub fn new<P: AsRef<Path>>(
+        spec: Spec,
+        root_dir: P,
+        runnable_settings: Box<dyn RunnableSettings>,
+        builder: Box<dyn Smbuilder>,
+    ) -> Result<SmbuilderWrapper, Error> {
+        let base_dir = SmbuilderWrapper::create_base_dir(&spec, root_dir, &runnable_settings)?;
 
-        let base_dir = match Smbuilder::create_base_dir(&spec, root_dir, &runnable_settings) {
-            Ok(p) => p,
-            Err(e) => {
-                e.pretty_panic(&settings);
-                PathBuf::new() // dummy code for da compiler
-            }
-        };
-        Smbuilder {
+        let result = SmbuilderWrapper {
             spec,
             base_dir,
-            settings,
             runnable_settings,
-        }
+            builder,
+        };
+
+        Ok(result)
     }
 
     /// this function runs before `new`,
@@ -45,15 +39,15 @@ impl Smbuilder {
     fn create_base_dir<P: AsRef<Path>>(
         spec: &Spec,
         root_dir: P,
-        runnable_settings: &RunnableSettings,
-    ) -> Result<PathBuf, SmbuilderError> {
+        runnable_settings: &Box<dyn RunnableSettings>,
+    ) -> Result<PathBuf, Error> {
         let base_dir_name = if let Some(name) = &spec.name {
             name
         } else {
             &spec.repo.name
         };
 
-        runnable_settings.log(format!("creating the base directory at {}", base_dir_name));
+        (*runnable_settings).log_info(&format!("creating the base directory at {}", base_dir_name));
 
         let unconfirmed_base_dir = root_dir.as_ref().join(base_dir_name);
         let base_dir = if unconfirmed_base_dir.exists() {
@@ -64,17 +58,17 @@ impl Smbuilder {
 
         match fs::create_dir(&base_dir) {
             Ok(_) => Ok(base_dir),
-            Err(e) => Err(SmbuilderError::new(
+            Err(e) => Err(Error::new(
                 Some(Box::new(e)),
                 format!("failed to create a directory at {:?}", &base_dir),
             )),
         }
     }
 
-    fn write_spec(&self) -> Result<(), SmbuilderError> {
+    pub fn write_spec(&self) -> Result<(), Error> {
         let file_path = self.base_dir.join("smbuilder.yaml");
 
-        self.runnable_settings.log(format!(
+        (*self.runnable_settings).log_info(&format!(
             "creating the spec file at {}",
             &file_path.display()
         ));
@@ -82,7 +76,7 @@ impl Smbuilder {
         let mut smbuilder_specfile = match fs::File::create(&file_path) {
             Ok(f) => f,
             Err(e) => {
-                return Err(SmbuilderError::new(
+                return Err(Error::new(
                     Some(Box::new(e)),
                     format!(
                         "failed to create the spec file at {}: ",
@@ -92,14 +86,14 @@ impl Smbuilder {
             }
         };
 
-        self.runnable_settings.log(format!(
+        (*self.runnable_settings).log_info(&format!(
             "writing the contents of the spec into {}",
             &file_path.display()
         ));
 
         match smbuilder_specfile.write_all(serde_yaml::to_string(&self.spec).unwrap().as_bytes()) {
             Ok(_) => Ok(()),
-            Err(e) => Err(SmbuilderError::new(
+            Err(e) => Err(Error::new(
                 Some(Box::new(e)),
                 format!(
                     "failed to write the spec into the file at {}: ",
@@ -109,18 +103,18 @@ impl Smbuilder {
         }
     }
 
-    fn clone_repo(&self) -> Result<PathBuf, SmbuilderError> {
+    pub fn clone_repo(&self) -> Result<PathBuf, Error> {
         let repo_name = &self.spec.repo.name;
         let repo_dir = self.base_dir.join(repo_name);
 
-        self.runnable_settings.log("cloning the repository");
+        (*self.runnable_settings).log_info(&"cloning the repository".to_string());
 
         match git2::build::RepoBuilder::new()
             .branch(&self.spec.repo.branch)
             .clone(&self.spec.repo.url, &repo_dir)
         {
             Ok(_) => Ok(repo_dir),
-            Err(e) => Err(SmbuilderError::new(
+            Err(e) => Err(Error::new(
                 Some(Box::new(e)),
                 format!(
                     "failed to clone the repository from {} into {}: ",
@@ -131,17 +125,17 @@ impl Smbuilder {
         }
     }
 
-    fn copy_rom<P: AsRef<Path>>(&self, repo_dir: P) -> Result<(), SmbuilderError> {
+    pub fn copy_rom<P: AsRef<Path>>(&self, repo_dir: P) -> Result<(), Error> {
         let rom_copy_target = repo_dir
             .as_ref()
             .join(format!("baserom.{}.z64", &self.spec.rom.region.to_string()));
 
-        self.runnable_settings
-            .log("copying the baserom into the correct location...");
+        (*self.runnable_settings)
+            .log_info(&"copying the baserom into the correct location".to_string());
 
         match fs::copy(&self.spec.rom.path, rom_copy_target) {
             Ok(_) => Ok(()),
-            Err(e) => Err(SmbuilderError::new(
+            Err(e) => Err(Error::new(
                 Some(Box::new(e)),
                 format!(
                     "failed to copy the rom from {} to {}: ",
@@ -152,13 +146,13 @@ impl Smbuilder {
         }
     }
 
-    fn create_build_script<P: AsRef<Path>>(&self, repo_dir: P) -> Result<(), SmbuilderError> {
+    pub fn create_build_script<P: AsRef<Path>>(&self, repo_dir: P) -> Result<(), Error> {
         let file_path = self.base_dir.join("build.sh");
 
         let mut build_script = match fs::File::create(&file_path) {
             Ok(file) => file,
             Err(e) => {
-                return Err(SmbuilderError::new(
+                return Err(Error::new(
                     Some(Box::new(e)),
                     format!(
                         "failed to create the build script at {}!",
@@ -171,7 +165,7 @@ impl Smbuilder {
         match build_script.write_all(self.spec.get_build_script(repo_dir.as_ref()).as_bytes()) {
             Ok(_) => (),
             Err(e) => {
-                return Err(SmbuilderError::new(
+                return Err(Error::new(
                     Some(Box::new(e)),
                     format!(
                         "failed to write to the build script at {}!",
@@ -185,93 +179,14 @@ impl Smbuilder {
     }
 
     fn setup_build(&self) {
-        use SmbuilderSetupStage::*;
-
-        let needed_targets = get_needed_setup_tasks(&self.spec, &self.base_dir);
-
-        // define some closures for less indents
-        let handle_write_spec = || {
-            if let Err(e) = self.write_spec() {
-                e.pretty_panic(&self.settings)
-            }
-        };
-
-        let handle_clone_repo = || {
-            if let Err(e) = self.clone_repo() {
-                e.pretty_panic(&self.settings)
-            }
-        };
-
-        let handle_copy_rom = |repo_dir: &Path| {
-            if let Err(e) = self.copy_rom(repo_dir) {
-                e.pretty_panic(&self.settings)
-            }
-        };
-
-        let handle_create_build_script = |repo_dir: &Path| {
-            if let Err(e) = self.create_build_script(repo_dir) {
-                e.pretty_panic(&self.settings)
-            }
-        };
-
-        for target in needed_targets {
-            match target {
-                WriteSpec => handle_write_spec(),
-                CloneRepo => handle_clone_repo(),
-                CopyRom => handle_copy_rom(&self.base_dir.join(&self.spec.repo.name)),
-                CreateBuildScript => {
-                    handle_create_build_script(&self.base_dir.join(&self.spec.repo.name))
-                }
-            }
-        }
+        (*self.builder).setup_build(&self);
     }
 
-    fn symlink_executable<P: AsRef<Path>>(&self, repo_dir: P) -> Result<(), SmbuilderError> {
-        let region_str: String = self.spec.rom.region.to_string();
-        let orig_path = repo_dir
-            .as_ref()
-            .join("build")
-            .join(format!("{}_pc", &region_str))
-            .join(format!("sm64.{}.f3dex2e", &region_str));
-        let target_path = repo_dir.as_ref().join("game_executable");
-
-        match symlink(&orig_path, &target_path) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(SmbuilderError::new(
-                Some(Box::new(e)),
-                format!(
-                    "failed to symlink the executable from {} to {}",
-                    orig_path.display(),
-                    target_path.display()
-                ),
-            )),
-        }
-    }
-
-    pub fn build(&self) -> Result<(), SmbuilderError> {
+    pub fn build(&self) -> Result<(), Error> {
         // set the build up first
         self.setup_build();
 
         // build
-        let build_cmdout = cmd!(self.base_dir.join("build.sh")).stderr_to_stdout();
-
-        let output = build_cmdout.reader().unwrap(); // FIXME: unwrap
-        let reader = BufReader::new(output);
-
-        for line in reader.lines() {
-            let ln = match line {
-                Ok(line) => line,
-                Err(e) => {
-                    return Err(SmbuilderError::new(
-                        Some(Box::new(e)),
-                        "the build command failed to run",
-                    ))
-                } // exit when there is no more output
-            };
-
-            println!("{}{}", "make: ".bold().blue(), ln)
-        }
-
-        self.symlink_executable(self.base_dir.join(&self.spec.repo.name))
+        (*self.builder).build(&self)
     }
 }
