@@ -1,6 +1,8 @@
+use colored::Colorize;
 use duct::cmd;
 
 use crate::prelude::Spec;
+use crate::settings::*;
 use crate::{error::SmbuilderError, make_file_executable};
 use std::{
     fs,
@@ -14,12 +16,27 @@ use super::{get_needed_setup_tasks, SmbuilderSetupStage};
 pub struct Smbuilder {
     spec: Spec,
     base_dir: PathBuf,
+    settings: Settings,
+    runnable_settings: RunnableSettings,
 }
 
 impl Smbuilder {
-    pub fn new<P: AsRef<Path>>(spec: Spec, root_dir: P) -> Smbuilder {
-        let base_dir = Smbuilder::create_base_dir(&spec, root_dir).unwrap();
-        Smbuilder { spec, base_dir }
+    pub fn new<P: AsRef<Path>>(spec: Spec, root_dir: P, settings: Settings) -> Smbuilder {
+        let runnable_settings = settings.get_runnable();
+
+        let base_dir = match Smbuilder::create_base_dir(&spec, root_dir, &runnable_settings) {
+            Ok(p) => p,
+            Err(e) => {
+                e.pretty_panic(&settings);
+                PathBuf::new() // dummy code for da compiler
+            }
+        };
+        Smbuilder {
+            spec,
+            base_dir,
+            settings,
+            runnable_settings,
+        }
     }
 
     /// this function runs before `new`,
@@ -28,12 +45,15 @@ impl Smbuilder {
     fn create_base_dir<P: AsRef<Path>>(
         spec: &Spec,
         root_dir: P,
+        runnable_settings: &RunnableSettings,
     ) -> Result<PathBuf, SmbuilderError> {
         let base_dir_name = if let Some(name) = &spec.name {
             name
         } else {
             &spec.repo.name
         };
+
+        runnable_settings.log(format!("creating the base directory at {}", base_dir_name));
 
         let unconfirmed_base_dir = root_dir.as_ref().join(base_dir_name);
         let base_dir = if unconfirmed_base_dir.exists() {
@@ -53,6 +73,12 @@ impl Smbuilder {
 
     fn write_spec(&self) -> Result<(), SmbuilderError> {
         let file_path = self.base_dir.join("smbuilder.yaml");
+
+        self.runnable_settings.log(format!(
+            "creating the spec file at {}",
+            &file_path.display()
+        ));
+
         let mut smbuilder_specfile = match fs::File::create(&file_path) {
             Ok(f) => f,
             Err(e) => {
@@ -65,6 +91,11 @@ impl Smbuilder {
                 ))
             }
         };
+
+        self.runnable_settings.log(format!(
+            "writing the contents of the spec into {}",
+            &file_path.display()
+        ));
 
         match smbuilder_specfile.write_all(serde_yaml::to_string(&self.spec).unwrap().as_bytes()) {
             Ok(_) => Ok(()),
@@ -81,6 +112,8 @@ impl Smbuilder {
     fn clone_repo(&self) -> Result<PathBuf, SmbuilderError> {
         let repo_name = &self.spec.repo.name;
         let repo_dir = self.base_dir.join(repo_name);
+
+        self.runnable_settings.log("cloning the repository");
 
         match git2::build::RepoBuilder::new()
             .branch(&self.spec.repo.branch)
@@ -102,6 +135,9 @@ impl Smbuilder {
         let rom_copy_target = repo_dir
             .as_ref()
             .join(format!("baserom.{}.z64", &self.spec.rom.region.to_string()));
+
+        self.runnable_settings
+            .log("copying the baserom into the correct location...");
 
         match fs::copy(&self.spec.rom.path, rom_copy_target) {
             Ok(_) => Ok(()),
@@ -156,25 +192,25 @@ impl Smbuilder {
         // define some closures for less indents
         let handle_write_spec = || {
             if let Err(e) = self.write_spec() {
-                panic!("{}", e)
+                e.pretty_panic(&self.settings)
             }
         };
 
         let handle_clone_repo = || {
             if let Err(e) = self.clone_repo() {
-                panic!("{}", e)
+                e.pretty_panic(&self.settings)
             }
         };
 
         let handle_copy_rom = |repo_dir: &Path| {
             if let Err(e) = self.copy_rom(repo_dir) {
-                panic!("{}", e)
+                e.pretty_panic(&self.settings)
             }
         };
 
         let handle_create_build_script = |repo_dir: &Path| {
             if let Err(e) = self.create_build_script(repo_dir) {
-                panic!("{}", e)
+                e.pretty_panic(&self.settings)
             }
         };
 
@@ -212,7 +248,7 @@ impl Smbuilder {
         }
     }
 
-    pub fn build(&self, cmdout_prefix: Option<String>) -> Result<(), SmbuilderError> {
+    pub fn build(&self) -> Result<(), SmbuilderError> {
         // set the build up first
         self.setup_build();
 
@@ -233,32 +269,9 @@ impl Smbuilder {
                 } // exit when there is no more output
             };
 
-            if let Some(c) = &cmdout_prefix {
-                println!("{}{}", c, ln)
-            } else {
-                println!("{}", ln)
-            }
+            println!("{}{}", "make: ".bold().blue(), ln)
         }
 
-        /*         let exit_status_code = if let Some(e_code) = exit_status.code() {
-                    e_code
-                } else {
-                    return Err(SmbuilderError::new(
-                        None,
-                        "failed to build the executable: probably terminated by a signal.",
-                    ));
-                };
-
-                if exit_status_code != 0 {
-                    return Err(SmbuilderError::new(
-                        None,
-                        format!(
-                            "failed to build the executable with exit code {}",
-                            &exit_status_code
-                        ),
-                    ));
-                }
-        */
         self.symlink_executable(self.base_dir.join(&self.spec.repo.name))
     }
 }

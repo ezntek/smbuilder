@@ -1,6 +1,8 @@
 use std::{error::Error, fmt::Display};
 
 use colored::Colorize;
+
+use crate::prelude::{CmdoutSettings, Settings};
 #[derive(Debug)]
 pub struct SmbuilderError {
     cause: Option<Box<dyn Error>>,
@@ -13,6 +15,20 @@ impl SmbuilderError {
             cause,
             description: description.as_ref().to_owned(),
         }
+    }
+
+    pub fn pretty_panic(self, settings: &Settings) {
+        let runnable_settings = (*settings).get_runnable();
+        runnable_settings.error(&self.description);
+
+        let panic_text = if let CmdoutSettings::Silent = settings.cmdout_settings {
+            &self.description
+        } else {
+            "panic from a pretty-panic. check error message above."
+        };
+
+        // goodbye, program ;)
+        panic!("{}", panic_text)
     }
 }
 

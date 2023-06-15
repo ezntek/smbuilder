@@ -1,22 +1,41 @@
-use std::path::PathBuf;
-
 use clap::Parser;
-use colored::Colorize;
-use smbuilder::prelude::*;
 
-#[derive(Parser)]
-struct Args {
-    file: PathBuf,
-}
+mod cli;
 
+use cli::*;
+use smbuilder::{
+    prelude::Smbuilder,
+    settings::{CmdoutSettings, Settings},
+    types::Spec,
+};
 fn main() {
-    let args = Args::parse();
+    let args = cli::Args::parse();
 
-    let spec = Spec::from_file(args.file).unwrap();
+    let Command::Build(build_args) = args.cmd;
 
-    let builder = Smbuilder::new(spec, PathBuf::from("./"));
+    let log_level_setting = if build_args.verbose {
+        CmdoutSettings::LogProgress { log_level: 3 }
+    } else {
+        CmdoutSettings::LogProgress {
+            log_level: build_args.log_level,
+        }
+    };
 
-    builder
-        .build(Some("make: ".to_string().bold().blue().to_string()))
-        .unwrap();
+    let settings = Settings {
+        cmdout_settings: log_level_setting,
+    };
+
+    let spec = match Spec::from_file(build_args.filename) {
+        Ok(s) => s,
+        Err(e) => {
+            e.pretty_panic(&settings);
+            panic!(); // dummy code
+        }
+    };
+
+    let builder = Smbuilder::new(spec, "./", settings);
+    match builder.build() {
+        Ok(_) => (),
+        Err(e) => e.pretty_panic(&settings),
+    };
 }
