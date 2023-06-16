@@ -1,3 +1,6 @@
+#[doc = include_str!("../../doc/builder.md")]
+
+/// arstarst
 pub mod build;
 pub mod traits;
 pub mod types;
@@ -10,17 +13,6 @@ use crate::prelude::{Region, RunnableSettings, Spec};
 use std::path::Path;
 
 use self::types::SmbuilderSetupStage;
-
-#[cfg(test)]
-mod tests {
-    use crate::error::Error;
-
-    #[test]
-    fn test_smbuilder_error() {
-        let e: Result<(), Error> = Result::Err(Error::new(None, "haha test error"));
-        println!("{}", e.unwrap_err());
-    }
-}
 
 pub fn get_needed_setup_tasks<P: AsRef<Path>>(
     spec: &Spec,

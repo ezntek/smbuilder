@@ -1,6 +1,5 @@
 /target
 **/target
-/doc*
 
 # for testing smbuilder
 /something

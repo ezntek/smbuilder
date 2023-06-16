@@ -1,6 +1,7 @@
+use crate::make_file_executable;
 use crate::prelude::{Smbuilder, Spec};
 use crate::settings::RunnableSettings;
-use crate::{error::Error, make_file_executable};
+use crate::SmbuilderError;
 use std::{
     fs,
     io::Write,
@@ -20,7 +21,7 @@ impl SmbuilderWrapper {
         root_dir: P,
         runnable_settings: Box<dyn RunnableSettings>,
         builder: Box<dyn Smbuilder>,
-    ) -> Result<SmbuilderWrapper, Error> {
+    ) -> Result<SmbuilderWrapper, SmbuilderError> {
         let base_dir = SmbuilderWrapper::create_base_dir(&spec, root_dir, &runnable_settings)?;
 
         let result = SmbuilderWrapper {
@@ -40,7 +41,7 @@ impl SmbuilderWrapper {
         spec: &Spec,
         root_dir: P,
         runnable_settings: &Box<dyn RunnableSettings>,
-    ) -> Result<PathBuf, Error> {
+    ) -> Result<PathBuf, SmbuilderError> {
         let base_dir_name = if let Some(name) = &spec.name {
             name
         } else {
@@ -58,14 +59,14 @@ impl SmbuilderWrapper {
 
         match fs::create_dir(&base_dir) {
             Ok(_) => Ok(base_dir),
-            Err(e) => Err(Error::new(
+            Err(e) => Err(SmbuilderError::new(
                 Some(Box::new(e)),
                 format!("failed to create a directory at {:?}", &base_dir),
             )),
         }
     }
 
-    pub fn write_spec(&self) -> Result<(), Error> {
+    pub fn write_spec(&self) -> Result<(), SmbuilderError> {
         let file_path = self.base_dir.join("smbuilder.yaml");
 
         (*self.runnable_settings).log_info(&format!(
@@ -76,7 +77,7 @@ impl SmbuilderWrapper {
         let mut smbuilder_specfile = match fs::File::create(&file_path) {
             Ok(f) => f,
             Err(e) => {
-                return Err(Error::new(
+                return Err(SmbuilderError::new(
                     Some(Box::new(e)),
                     format!(
                         "failed to create the spec file at {}: ",
@@ -93,7 +94,7 @@ impl SmbuilderWrapper {
 
         match smbuilder_specfile.write_all(serde_yaml::to_string(&self.spec).unwrap().as_bytes()) {
             Ok(_) => Ok(()),
-            Err(e) => Err(Error::new(
+            Err(e) => Err(SmbuilderError::new(
                 Some(Box::new(e)),
                 format!(
                     "failed to write the spec into the file at {}: ",
@@ -103,7 +104,7 @@ impl SmbuilderWrapper {
         }
     }
 
-    pub fn clone_repo(&self) -> Result<PathBuf, Error> {
+    pub fn clone_repo(&self) -> Result<PathBuf, SmbuilderError> {
         let repo_name = &self.spec.repo.name;
         let repo_dir = self.base_dir.join(repo_name);
 
@@ -114,7 +115,7 @@ impl SmbuilderWrapper {
             .clone(&self.spec.repo.url, &repo_dir)
         {
             Ok(_) => Ok(repo_dir),
-            Err(e) => Err(Error::new(
+            Err(e) => Err(SmbuilderError::new(
                 Some(Box::new(e)),
                 format!(
                     "failed to clone the repository from {} into {}: ",
@@ -125,7 +126,7 @@ impl SmbuilderWrapper {
         }
     }
 
-    pub fn copy_rom<P: AsRef<Path>>(&self, repo_dir: P) -> Result<(), Error> {
+    pub fn copy_rom<P: AsRef<Path>>(&self, repo_dir: P) -> Result<(), SmbuilderError> {
         let rom_copy_target = repo_dir
             .as_ref()
             .join(format!("baserom.{}.z64", &self.spec.rom.region.to_string()));
@@ -135,7 +136,7 @@ impl SmbuilderWrapper {
 
         match fs::copy(&self.spec.rom.path, rom_copy_target) {
             Ok(_) => Ok(()),
-            Err(e) => Err(Error::new(
+            Err(e) => Err(SmbuilderError::new(
                 Some(Box::new(e)),
                 format!(
                     "failed to copy the rom from {} to {}: ",
@@ -146,13 +147,13 @@ impl SmbuilderWrapper {
         }
     }
 
-    pub fn create_build_script<P: AsRef<Path>>(&self, repo_dir: P) -> Result<(), Error> {
+    pub fn create_build_script<P: AsRef<Path>>(&self, repo_dir: P) -> Result<(), SmbuilderError> {
         let file_path = self.base_dir.join("build.sh");
 
         let mut build_script = match fs::File::create(&file_path) {
             Ok(file) => file,
             Err(e) => {
-                return Err(Error::new(
+                return Err(SmbuilderError::new(
                     Some(Box::new(e)),
                     format!(
                         "failed to create the build script at {}!",
@@ -165,7 +166,7 @@ impl SmbuilderWrapper {
         match build_script.write_all(self.spec.get_build_script(repo_dir.as_ref()).as_bytes()) {
             Ok(_) => (),
             Err(e) => {
-                return Err(Error::new(
+                return Err(SmbuilderError::new(
                     Some(Box::new(e)),
                     format!(
                         "failed to write to the build script at {}!",
@@ -182,7 +183,7 @@ impl SmbuilderWrapper {
         (*self.builder).setup_build(&self);
     }
 
-    pub fn build(&self) -> Result<(), Error> {
+    pub fn build(&self) -> Result<(), SmbuilderError> {
         // set the build up first
         self.setup_build();
 
