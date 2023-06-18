@@ -1,11 +1,25 @@
-buildrelease:
-	cargo build --release
+.PHONY: clean
 
-runrelease: build_release
-	target/release/smbuilder
+CLEAN_DIRNAMES := target/debug target/release target/doc
+CLEAN_DIRS := $(strip $(foreach dir,$(CLEAN_DIRNAMES),$(wildcard $(dir))))
+
+docs:
+	cargo doc --no-deps
+
+format:
+	cargo fmt
+
+check:
+	cargo clippy
 
 build:
-	cargo build
+	ifeq ($(BUILDTYPE),release)
+		cargo build --release
+	else
+		cargo build
+	endif
 
-run: build
-	target/debug/smbuilder
+clean: 
+ifneq (,$(CLEAN_DIRS))
+	rm -r $(CLEAN_DIRS)
+endif

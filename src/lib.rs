@@ -2,8 +2,16 @@
 #![warn(missing_docs)]
 
 pub mod builder;
+
+/// The prelude of this crate.
 pub mod prelude;
-pub mod settings;
+
+/// Types that relate to the
+/// settings of a build.
+pub mod logger;
+
+/// Core types that binds common
+/// build resources to rust types.
 pub mod types;
 
 use colored::Colorize;
@@ -12,12 +20,17 @@ use std::fmt::Display;
 use std::{fs, os::unix::prelude::PermissionsExt, path::Path};
 
 #[derive(Debug)]
+/// An smbuilder-related error.
 pub struct SmbuilderError {
+    /// The cause of the error.
     pub cause: Option<Box<dyn std::error::Error>>,
+
+    /// The description of the error.
     pub description: String,
 }
 
 impl SmbuilderError {
+    /// Creates a new `SmbuilderError`.
     pub fn new<S: AsRef<str>>(cause: Option<Box<dyn std::error::Error>>, description: S) -> Self {
         SmbuilderError {
             cause,
@@ -57,7 +70,7 @@ impl std::error::Error for SmbuilderError {
 }
 
 /// Get a string of options in the format of
-/// bourne shell variables from a list of `Makeopt`,
+/// bourne shell variables from a list of `makeopt`,
 /// for use with the `make` command.
 pub fn get_makeopts_string(makeopts: &[Makeopt]) -> String {
     let mut result = makeopts

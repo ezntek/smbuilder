@@ -9,60 +9,121 @@ use std::path::PathBuf;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+/// Represents the region of a given ROM file.
 pub enum Region {
     #[default]
+    /// A rom pulled from a US cartridge.
     US,
+
+    /// A rom pulled from a European cartridge (EU).
     EU,
+    /// A rom pulled from a Japanese cartridge.
     JP,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+/// Represents a ROM file.
 pub struct Rom {
+    /// The Region of the ROM Cartridge that
+    /// the ROM was pulled from.
     pub region: Region,
+    /// The path of the ROM file on disk.
     pub path: PathBuf,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+/// Represents a git repository with the
+/// source code of the a port.
 pub struct Repo {
+    /// The name of the repository.
+    ///
+    /// Used for launchers where
+    /// the name may need to be a
+    /// little bit more user friendly.
     pub name: String,
+    /// The link to the repository.
     pub url: String,
+    /// The branch to clone from.
     pub branch: String,
+    /// Does this repo support
+    /// Dynamic Option System
+    /// datapacks? (DynOS)
     pub supports_packs: bool,
+    /// Does this repo support
+    /// custom textures?
     pub supports_textures: bool,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+/// Represents a key-value pair
+/// Make Flag, such as `BETTERCAMERA=1`
 pub struct Makeopt {
+    /// The key of the flag.
     pub key: String,
+    /// The value of the flag.
     pub value: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+/// Represents a data pack (DynOS).
 pub struct Datapack {
+    /// The label of the pack,
+    /// for the launcher.
     pub label: String,
+    /// Where the location of
+    /// the pack is on disk.
     pub path: PathBuf,
+    /// If the pack is enabled
+    /// or not. Used for the
+    /// hard-disable functionality.
     pub enabled: bool,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+/// Represents a texture pack.
 pub struct TexturePack {
+    /// Where the location of
+    /// the pack is on disk.
     pub path: PathBuf,
+    /// If the pack is enabled
+    /// or not. Used for the
+    /// hard-disable feature.
     pub enabled: bool,
 }
 
 #[derive(Default, Builder, Debug, Deserialize, Serialize)]
 #[builder(setter(into))]
+/// Represents a build spec.
+///
+/// All of its child structs implements
+/// `Deserialize` and `Serialize`, and a
+/// spec file is derived directly from this
+/// structure.
 pub struct Spec {
+    /// The ROM to extract assets out of.
     pub rom: Rom,
+    /// The repository to build from.
     pub repo: Repo,
+    /// Amount of compile jobs that are
+    /// allowed for the compiler. Will
+    /// be used to set the `-j` flag
+    /// during compile time.
     pub jobs: Option<u8>,
+    /// A custom name.
     pub name: Option<String>,
-    pub additional_makeopts: Option<Vec<Makeopt>>,
+    /// Make flags to be passed to the
+    /// compiler.
+    pub makeopts: Option<Vec<Makeopt>>,
+    /// A texture pack, if supported.
     pub texture_pack: Option<TexturePack>,
+    /// Datapacks, if supported.
     pub packs: Option<Vec<Datapack>>,
 }
 
 impl Spec {
+    /// Creates a new spec, from a file.
+    ///
+    /// TODO: example
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Spec, SmbuilderError> {
         let file_string = match fs::read_to_string(&path) {
             Ok(s) => s,
@@ -87,14 +148,18 @@ impl Spec {
         Ok(retval)
     }
 
+    /// Gets a build shell script, ready to be
+    /// written to disk.
+    ///
+    /// TODO: example
     pub fn get_build_script(&self, repo_path: &Path) -> String {
-        let makeopts_string = if let Some(makeopts) = &self.additional_makeopts {
+        let makeopts_string = if let Some(makeopts) = &self.makeopts {
             get_makeopts_string(makeopts)
         } else {
             String::new()
         };
 
-        let jobs = if let Some(j) = self.jobs { j } else { 2 };
+        let jobs = self.jobs.unwrap_or(2);
 
         format!(
             "
