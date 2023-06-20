@@ -9,6 +9,6 @@ edition = "2021"
 colored = "2.0.0"
 derive_builder = "0.12.0"
 git2 = "0.17.1"
-n64romconvert = "0.1.1"
+n64romconvert = "1.0.0"
 serde = { version = "1.0.162", features = ["serde_derive"] }
 serde_yaml = "0.9.21"

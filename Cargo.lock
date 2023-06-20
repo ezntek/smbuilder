@@ -425,9 +425,9 @@ dependencies = [
 
 [[package]]
 name = "n64romconvert"
-version = "0.1.1"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfbd4b5f05ce8afac8ab87645c3b1ea3102ff72d869c58f2d3038ea982151623"
+checksum = "8fcfd4ab2a9248db9c8a391854488b5e87ecf073190f9cbc4740c2b18edcc29e"
 dependencies = [
  "clap",
  "colored",

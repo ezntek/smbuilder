@@ -1,14 +1,25 @@
 //! The API and rust representation(s) of core build processes that are involved in building a port.
 
-use crate::logger::Log;
-use crate::prelude::Region;
+use n64romconvert::{determine_format, RomType};
+
+use crate::prelude::{BuilderCallbacks, LogType, Region};
 use crate::SmbuilderError;
 use crate::{make_file_executable, prelude::Spec};
+use std::io::BufWriter;
 use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
 };
+use LogType::*;
+
+macro_rules! run_callback {
+    ($callback:expr, $($cb_arg:tt)*) => {
+        if let Some(callback) = $callback {
+            callback($($cb_arg)*);
+        };
+    };
+}
 
 /// A trait to represent a builder struct.
 ///
@@ -22,7 +33,75 @@ use std::{
 /// implementation of running the build script generated
 /// by `create_build_script`.
 ///
-/// TODO: example
+/// ```rust
+/// use smbuilder::prelude::*;
+/// # struct MyLogger;
+/// # impl Log for MyLogger {
+/// #     fn log_error(&self, text: &str) {
+/// #         println!("{}", text)
+/// #     }
+/// #     fn log_build_output(&self, text: &str) {
+/// #         println!("{}", text)
+/// #     }
+/// #     fn log_warn(&self, text: &str) {
+/// #         println!("{}", text)
+/// #     }
+/// #     fn log_info(&self, text: &str) {
+/// #         println!("{}", text)
+/// #     }
+/// # }
+/// struct MyBuilder;
+///
+/// impl Smbuilder for MyBuilder {
+///     fn setup_build(&self, wrapper: &BuildWrapper) {
+///         // Get the needed setup tasks first: it eliminates
+///         // the need to unnecessarily perform all setup
+///         // steps.
+///         let needed_setup_tasks = get_needed_setup_tasks(
+///             &wrapper.spec,
+///             &wrapper.base_dir,
+///             &MyLogger // see the docs for how to implement a logger
+///         );
+///
+///         // run the setup tasks and handle
+///         // errors as you see fit
+///         wrapper.write_spec()
+///             .unwrap();
+///
+///         wrapper.clone_repo()
+///             .expect("failed to clone the repo!");
+///
+///         // log something with the logger, as you see fit.
+///         (*wrapper.logger) // TODO: fix whatever this is
+///             .log_info("done cloning the repo!");
+///
+///         // ...
+///         // Contile handling the errors from those tasks.
+///
+///     }
+///
+///     fn build(&self, wrapper: &BuildWrapper) -> Result<(), SmbuilderError> {
+///         // use a `std::process:Command` to run the
+///         // build script at `base_dir/build.sh`
+///         let mut command = std::process::Command::new(wrapper.base_dir.join("build.sh"));
+///         
+///         // spawn the command
+///         let mut child = command.spawn().unwrap();
+///         
+///         // this blocks the current function!
+///         // use a `Stdio::piped()` and a `BufReader`
+///         // if you want to stream the build output
+///         // into something.
+///         match child.wait() {
+///             Ok(_) => Ok(()),
+///             Err(e) => Err(SmbuilderError::new(
+///                Some(Box::new(e)),
+///                "some error happened!"
+///             )),
+///         }
+///     }
+/// }
+/// ```
 ///
 /// implementors must do this as the different
 /// use cases for this crate will need different
@@ -31,16 +110,21 @@ use std::{
 /// a GUI may need to spawn an error dialog, but a
 /// CLI may just panic, etc.
 ///
+/// ## warning
+///
+/// It is highly recommended that you follow
+/// the output from `get_needed_setep_tasks()`, as
+/// it tells you which steps you would need to call.
+///
+/// If not, it is still important to perform all
+/// tasks listed, as these tasks are required for a
+/// build to function.
 pub trait Smbuilder {
     /// The build setup function.
     ///
     /// This is where one implements custom logic
     /// to handle `SmbuilderError`s that may be
     /// returned from the wrapper's given setup functions.
-    ///
-    /// TODO: example
-    ///
-    /// TODO: further explaination
     fn setup_build(&self, wrapper: &BuildWrapper);
 
     /// The build function.
@@ -49,12 +133,9 @@ pub trait Smbuilder {
     /// behind running the build script provided by
     /// `create_build_script` from the wrapper class.
     ///
-    /// TODO: example
-    ///
-    /// This architecture allows for different ways
-    /// of capturing the standard output from the
-    /// build command in the script, handling exit codes,
-    /// etc.
+    /// Should return an `SmbuilderError` if the build
+    /// fails due to any reason (child process with a
+    /// failure exit code, some other error, etc.)
     fn build(&self, wrapper: &BuildWrapper) -> Result<(), SmbuilderError>;
 }
 
@@ -64,13 +145,20 @@ pub trait Smbuilder {
 ///
 /// It includes critical steps to be able to
 /// build a basic, vanilla port.
-pub enum SmbuilderSetupStage {
+pub enum SetupStage {
     /// Write the spec file to disk.
     WriteSpec,
 
     /// Clone the repository
     /// as per the info in the spec.
     CloneRepo,
+
+    /// Convert the ROM to a
+    /// big-endian ROM.
+    ///
+    /// Needed for all ports to
+    /// extract assets.
+    ConvertRom,
 
     /// Copy the base ROM (to extract
     /// the assets from) from the
@@ -85,13 +173,14 @@ pub enum SmbuilderSetupStage {
     CreateBuildScript,
 }
 
-impl ToString for SmbuilderSetupStage {
+impl ToString for SetupStage {
     fn to_string(&self) -> String {
-        use SmbuilderSetupStage::*;
+        use SetupStage::*;
 
         let result = match self {
             WriteSpec => "write the spec to disk",
             CloneRepo => "clone the repository",
+            ConvertRom => "convert the ROM to the correct format",
             CopyRom => "copy the base ROM",
             CreateBuildScript => "create the build script",
         };
@@ -104,7 +193,10 @@ impl ToString for SmbuilderSetupStage {
 ///
 /// Includes fields and methods that makes up the core of
 /// any smbuilder-derived app.
-pub struct BuildWrapper {
+///
+/// TODO: example
+///
+pub struct BuildWrapper<'a> {
     /// The spec that the build will be built with.
     pub spec: Spec,
 
@@ -112,11 +204,11 @@ pub struct BuildWrapper {
     pub base_dir: PathBuf,
 
     /// The logger.
-    pub logger: Box<dyn Log>,
+    pub callbacks: BuilderCallbacks<'a>,
     builder: Box<dyn Smbuilder>,
 }
 
-impl BuildWrapper {
+impl<'a> BuildWrapper<'a> {
     /// Creates a new `BuildWrapper`.
     ///
     /// It creates the base directory from
@@ -130,18 +222,20 @@ impl BuildWrapper {
     /// It takes in a runnable settings instance
     /// for actions such as logging.
     ///
+    ///
+    ///
     pub fn new<P: AsRef<Path>>(
         spec: Spec,
         root_dir: P,
-        runnable_settings: Box<dyn Log>,
+        callbacks: BuilderCallbacks,
         builder: Box<dyn Smbuilder>,
     ) -> Result<BuildWrapper, SmbuilderError> {
-        let base_dir = BuildWrapper::create_base_dir(&spec, root_dir, &*runnable_settings)?;
+        let base_dir = BuildWrapper::create_base_dir(&spec, root_dir, &callbacks)?;
 
         let result = BuildWrapper {
             spec,
             base_dir,
-            logger: runnable_settings,
+            callbacks,
             builder,
         };
 
@@ -151,7 +245,7 @@ impl BuildWrapper {
     fn create_base_dir<P: AsRef<Path>>(
         spec: &Spec,
         root_dir: P,
-        runnable_settings: &dyn Log,
+        callbacks: &BuilderCallbacks,
     ) -> Result<PathBuf, SmbuilderError> {
         // this function runs before `new`,
         // so this will not take in self, but
@@ -163,7 +257,7 @@ impl BuildWrapper {
             &spec.repo.name
         };
 
-        (*runnable_settings).log_info(&format!("creating the base directory at {}", base_dir_name));
+        run_callback!(&callbacks.log_cb, Info, "creating the base directory");
 
         let unconfirmed_base_dir = root_dir.as_ref().join(base_dir_name);
         let base_dir = if unconfirmed_base_dir.exists() {
@@ -185,13 +279,14 @@ impl BuildWrapper {
     pub fn write_spec(&self) -> Result<(), SmbuilderError> {
         let file_path = self.base_dir.join("smbuilder.yaml");
 
-        (*self.logger).log_info(&format!(
-            "creating the spec file at {}",
-            &file_path.display()
-        ));
+        run_callback!(
+            &self.callbacks.log_cb,
+            Info,
+            &format!("creating the spec file at {}", &file_path.display())
+        );
 
         let mut smbuilder_specfile = match fs::File::create(&file_path) {
-            Ok(f) => f,
+            Ok(f) => BufWriter::new(f),
             Err(e) => {
                 return Err(SmbuilderError::new(
                     Some(Box::new(e)),
@@ -203,10 +298,14 @@ impl BuildWrapper {
             }
         };
 
-        (*self.logger).log_info(&format!(
-            "writing the contents of the spec into {}",
-            &file_path.display()
-        ));
+        run_callback!(
+            &self.callbacks.log_cb,
+            Info,
+            &format!(
+                "writing the contents of the spec into {}",
+                &file_path.display()
+            )
+        );
 
         match smbuilder_specfile.write_all(serde_yaml::to_string(&self.spec).unwrap().as_bytes()) {
             Ok(_) => Ok(()),
@@ -226,7 +325,7 @@ impl BuildWrapper {
         let repo_name = &self.spec.repo.name;
         let repo_dir = self.base_dir.join(repo_name);
 
-        (*self.logger).log_info("cloning the repository");
+        run_callback!(&self.callbacks.log_cb, Info, "cloning the repository");
 
         match git2::build::RepoBuilder::new()
             .branch(&self.spec.repo.branch)
@@ -251,7 +350,11 @@ impl BuildWrapper {
             .as_ref()
             .join(format!("baserom.{}.z64", &self.spec.rom.region.to_string()));
 
-        (*self.logger).log_info("copying the baserom into the correct location");
+        run_callback!(
+            &self.callbacks.log_cb,
+            Info,
+            "copying the baserom into the correct location"
+        );
 
         match fs::copy(&self.spec.rom.path, rom_copy_target) {
             Ok(_) => Ok(()),
@@ -319,12 +422,12 @@ impl BuildWrapper {
 pub fn get_needed_setup_tasks<P: AsRef<Path>>(
     spec: &Spec,
     base_dir: P,
-    runnable_settings: Box<dyn Log>,
-) -> Vec<SmbuilderSetupStage> {
-    use SmbuilderSetupStage::*;
+    callbacks: &BuilderCallbacks,
+) -> Vec<SetupStage> {
+    use SetupStage::*;
 
     let base_dir = base_dir.as_ref();
-    let mut needed_stages: Vec<SmbuilderSetupStage> = Vec::new();
+    let mut needed_stages: Vec<SetupStage> = Vec::new();
 
     // check if the spec exists in the dir
     if !base_dir.join("smbuilder.yaml").exists() {
@@ -334,6 +437,14 @@ pub fn get_needed_setup_tasks<P: AsRef<Path>>(
     // check if the repo is cloned
     if !base_dir.join(&spec.repo.name).exists() {
         needed_stages.push(CloneRepo)
+    }
+
+    // check if the ROM is in the correct format
+    let format =
+        determine_format(&spec.rom.path).expect("The ROM's format could not be recognized");
+
+    if format != RomType::BigEndian {
+        needed_stages.push(ConvertRom)
     }
 
     // check if the rom exists
@@ -357,7 +468,11 @@ pub fn get_needed_setup_tasks<P: AsRef<Path>>(
         .collect::<Vec<String>>()
         .join(", ");
 
-    (*runnable_settings).log_info(&format!("needed tasks: {}", needed_stages_string));
+    run_callback!(
+        &callbacks.log_cb,
+        Info,
+        &format!("needed tasks: {}", needed_stages_string)
+    );
 
     // return
     needed_stages

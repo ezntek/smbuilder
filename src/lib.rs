@@ -8,16 +8,22 @@ pub mod prelude;
 
 /// Types that relate to the
 /// settings of a build.
-pub mod logger;
 
 /// Core types that binds common
 /// build resources to rust types.
 pub mod types;
 
 use colored::Colorize;
-use prelude::Makeopt;
+use prelude::*;
 use std::fmt::Display;
 use std::{fs, os::unix::prelude::PermissionsExt, path::Path};
+
+pub enum LogType {
+    Error,
+    Warn,
+    BuildOutput,
+    Info,
+}
 
 #[derive(Debug)]
 /// An smbuilder-related error.
@@ -66,6 +72,46 @@ impl std::error::Error for SmbuilderError {
 
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
+    }
+}
+
+// sexy callback time
+// O.O
+// im going insane help me
+// eason@eznetek.com
+// please
+// thanks
+
+pub type LogCallback<'cb> = dyn Fn(LogType, &str) + 'cb;
+pub type NewStageCallback<'cb> = dyn Fn(&SetupStage) + 'cb;
+
+pub struct BuilderCallbacks<'cb> {
+    pub log_cb: Option<Box<LogCallback<'cb>>>,
+    pub new_stage_cb: Option<Box<NewStageCallback<'cb>>>,
+}
+
+impl<'cb> BuilderCallbacks<'cb> {
+    pub fn empty() -> Self {
+        BuilderCallbacks {
+            log_cb: None,
+            new_stage_cb: None,
+        }
+    }
+
+    pub fn log<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(LogType, &str) + 'cb,
+    {
+        self.log_cb = Some(Box::new(callback) as Box<LogCallback<'cb>>);
+        self
+    }
+
+    pub fn new_stage<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(&SetupStage) + 'cb,
+    {
+        self.new_stage_cb = Some(Box::new(callback) as Box<NewStageCallback<'cb>>);
+        self
     }
 }
 
