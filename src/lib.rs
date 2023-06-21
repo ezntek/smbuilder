@@ -18,6 +18,15 @@ use prelude::*;
 use std::fmt::Display;
 use std::{fs, os::unix::prelude::PermissionsExt, path::Path};
 
+#[macro_export]
+macro_rules! run_callback {
+    ($callback:expr, $($cb_arg:tt)*) => {
+        if let Some(callback) = &mut $callback {
+            callback($($cb_arg)*);
+        };
+    };
+}
+
 pub enum LogType {
     Error,
     Warn,
@@ -82,25 +91,28 @@ impl std::error::Error for SmbuilderError {
 // please
 // thanks
 
-pub type LogCallback<'cb> = dyn Fn(LogType, &str) + 'cb;
-pub type NewStageCallback<'cb> = dyn Fn(&SetupStage) + 'cb;
+pub type LogCallback<'cb> = dyn FnMut(LogType, &str) + 'cb;
+pub type NewStageCallback<'cb> = dyn FnMut(SetupStage) + 'cb;
+pub type RepoCloneProgressCallback<'cb> = dyn FnMut(f64) + 'cb;
 
-pub struct BuilderCallbacks<'cb> {
+pub struct Callbacks<'cb> {
     pub log_cb: Option<Box<LogCallback<'cb>>>,
     pub new_stage_cb: Option<Box<NewStageCallback<'cb>>>,
+    pub repo_clone_progress_cb: Option<Box<RepoCloneProgressCallback<'cb>>>,
 }
 
-impl<'cb> BuilderCallbacks<'cb> {
+impl<'cb> Callbacks<'cb> {
     pub fn empty() -> Self {
-        BuilderCallbacks {
+        Callbacks {
             log_cb: None,
             new_stage_cb: None,
+            repo_clone_progress_cb: None,
         }
     }
 
     pub fn log<F>(mut self, callback: F) -> Self
     where
-        F: Fn(LogType, &str) + 'cb,
+        F: FnMut(LogType, &str) + 'cb,
     {
         self.log_cb = Some(Box::new(callback) as Box<LogCallback<'cb>>);
         self
@@ -108,9 +120,18 @@ impl<'cb> BuilderCallbacks<'cb> {
 
     pub fn new_stage<F>(mut self, callback: F) -> Self
     where
-        F: Fn(&SetupStage) + 'cb,
+        F: FnMut(SetupStage) + 'cb,
     {
         self.new_stage_cb = Some(Box::new(callback) as Box<NewStageCallback<'cb>>);
+        self
+    }
+
+    pub fn repo_clone_progress<F>(mut self, callback: F) -> Self
+    where
+        F: FnMut(f64) + 'cb,
+    {
+        self.repo_clone_progress_cb =
+            Some(Box::new(callback) as Box<RepoCloneProgressCallback<'cb>>);
         self
     }
 }

@@ -1,25 +1,18 @@
 //! The API and rust representation(s) of core build processes that are involved in building a port.
 
-use n64romconvert::{determine_format, RomType};
+use n64romconvert::{byte_swap, endian_swap, RomType};
 
-use crate::prelude::{BuilderCallbacks, LogType, Region};
+use crate::prelude::{run_callback, Callbacks, LogType, Region};
 use crate::SmbuilderError;
 use crate::{make_file_executable, prelude::Spec};
-use std::io::BufWriter;
 use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
 };
-use LogType::*;
 
-macro_rules! run_callback {
-    ($callback:expr, $($cb_arg:tt)*) => {
-        if let Some(callback) = $callback {
-            callback($($cb_arg)*);
-        };
-    };
-}
+use LogType::*;
+use SetupStage::*;
 
 /// A trait to represent a builder struct.
 ///
@@ -153,13 +146,6 @@ pub enum SetupStage {
     /// as per the info in the spec.
     CloneRepo,
 
-    /// Convert the ROM to a
-    /// big-endian ROM.
-    ///
-    /// Needed for all ports to
-    /// extract assets.
-    ConvertRom,
-
     /// Copy the base ROM (to extract
     /// the assets from) from the
     /// specified location in the spec
@@ -180,7 +166,6 @@ impl ToString for SetupStage {
         let result = match self {
             WriteSpec => "write the spec to disk",
             CloneRepo => "clone the repository",
-            ConvertRom => "convert the ROM to the correct format",
             CopyRom => "copy the base ROM",
             CreateBuildScript => "create the build script",
         };
@@ -204,8 +189,7 @@ pub struct BuildWrapper<'a> {
     pub base_dir: PathBuf,
 
     /// The logger.
-    pub callbacks: BuilderCallbacks<'a>,
-    builder: Box<dyn Smbuilder>,
+    pub callbacks: Callbacks<'a>,
 }
 
 impl<'a> BuildWrapper<'a> {
@@ -227,16 +211,14 @@ impl<'a> BuildWrapper<'a> {
     pub fn new<P: AsRef<Path>>(
         spec: Spec,
         root_dir: P,
-        callbacks: BuilderCallbacks,
-        builder: Box<dyn Smbuilder>,
+        mut callbacks: Callbacks,
     ) -> Result<BuildWrapper, SmbuilderError> {
-        let base_dir = BuildWrapper::create_base_dir(&spec, root_dir, &callbacks)?;
+        let base_dir = BuildWrapper::create_base_dir(&spec, root_dir, &mut callbacks);
 
         let result = BuildWrapper {
             spec,
             base_dir,
             callbacks,
-            builder,
         };
 
         Ok(result)
@@ -245,8 +227,8 @@ impl<'a> BuildWrapper<'a> {
     fn create_base_dir<P: AsRef<Path>>(
         spec: &Spec,
         root_dir: P,
-        callbacks: &BuilderCallbacks,
-    ) -> Result<PathBuf, SmbuilderError> {
+        callbacks: &mut Callbacks,
+    ) -> PathBuf {
         // this function runs before `new`,
         // so this will not take in self, but
         // will return the result that is relevant.
@@ -257,49 +239,42 @@ impl<'a> BuildWrapper<'a> {
             &spec.repo.name
         };
 
-        run_callback!(&callbacks.log_cb, Info, "creating the base directory");
+        run_callback!(&mut callbacks.log_cb, Info, "creating the base directory");
 
         let unconfirmed_base_dir = root_dir.as_ref().join(base_dir_name);
         let base_dir = if unconfirmed_base_dir.exists() {
-            return Ok(unconfirmed_base_dir);
+            return unconfirmed_base_dir;
         } else {
             unconfirmed_base_dir
         };
 
-        match fs::create_dir(&base_dir) {
-            Ok(_) => Ok(base_dir),
-            Err(e) => Err(SmbuilderError::new(
-                Some(Box::new(e)),
-                format!("failed to create a directory at {:?}", &base_dir),
-            )),
-        }
+        fs::create_dir(&base_dir)
+            .unwrap_or_else(|_| panic!("failed to create a directory at {:?}", &base_dir));
+
+        base_dir
     }
 
     /// Writes the current spec to disk.
-    pub fn write_spec(&self) -> Result<(), SmbuilderError> {
+    pub fn write_spec(&mut self) {
+        run_callback!(self.callbacks.new_stage_cb, WriteSpec);
+
         let file_path = self.base_dir.join("smbuilder.yaml");
 
         run_callback!(
-            &self.callbacks.log_cb,
+            self.callbacks.log_cb,
             Info,
             &format!("creating the spec file at {}", &file_path.display())
         );
 
-        let mut smbuilder_specfile = match fs::File::create(&file_path) {
-            Ok(f) => BufWriter::new(f),
-            Err(e) => {
-                return Err(SmbuilderError::new(
-                    Some(Box::new(e)),
-                    format!(
-                        "failed to create the spec file at {}: ",
-                        &file_path.display()
-                    ),
-                ))
-            }
-        };
+        let mut smbuilder_specfile = fs::File::create(&file_path).unwrap_or_else(|_| {
+            panic!(
+                "failed to create the spec file at {}: ",
+                &file_path.display()
+            )
+        });
 
         run_callback!(
-            &self.callbacks.log_cb,
+            self.callbacks.log_cb,
             Info,
             &format!(
                 "writing the contents of the spec into {}",
@@ -307,112 +282,123 @@ impl<'a> BuildWrapper<'a> {
             )
         );
 
-        match smbuilder_specfile.write_all(serde_yaml::to_string(&self.spec).unwrap().as_bytes()) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(SmbuilderError::new(
-                Some(Box::new(e)),
-                format!(
+        smbuilder_specfile
+            .write_all(serde_yaml::to_string(&self.spec).unwrap().as_bytes())
+            .unwrap_or_else(|_| {
+                panic!(
                     "failed to write the spec into the file at {}: ",
                     &file_path.display()
-                ),
-            )),
-        }
+                )
+            });
     }
 
     /// Clones the repository as specified in the
     /// spec to disk.
-    pub fn clone_repo(&self) -> Result<PathBuf, SmbuilderError> {
+    pub fn clone_repo(&mut self) -> PathBuf {
+        run_callback!(self.callbacks.new_stage_cb, CloneRepo);
+
         let repo_name = &self.spec.repo.name;
         let repo_dir = self.base_dir.join(repo_name);
 
-        run_callback!(&self.callbacks.log_cb, Info, "cloning the repository");
+        run_callback!(self.callbacks.log_cb, Info, "cloning the repository");
 
-        match git2::build::RepoBuilder::new()
+        git2::build::RepoBuilder::new()
             .branch(&self.spec.repo.branch)
             .clone(&self.spec.repo.url, &repo_dir)
-        {
-            Ok(_) => Ok(repo_dir),
-            Err(e) => Err(SmbuilderError::new(
-                Some(Box::new(e)),
-                format!(
+            .unwrap_or_else(|_| {
+                panic!(
                     "failed to clone the repository from {} into {}: ",
                     &self.spec.repo.url,
                     &repo_dir.display()
-                ),
-            )),
-        }
+                )
+            });
+
+        repo_dir
     }
 
-    /// Copies the ROM from the path specified in the spec
-    /// to the path needed for the build to succeed.
-    pub fn copy_rom<P: AsRef<Path>>(&self, repo_dir: P) -> Result<(), SmbuilderError> {
-        let rom_copy_target = repo_dir
+    /// Copies the ROM from the path specified
+    /// in the spec into the root of the repo,
+    /// performing a format conversion if
+    /// necessary.
+    pub fn copy_rom<P: AsRef<Path>>(&mut self, repo_dir: P) {
+        run_callback!(self.callbacks.new_stage_cb, CopyRom);
+        use RomType::*;
+
+        let rom_type = self.spec.rom.format;
+        let target_rom_path = repo_dir
             .as_ref()
-            .join(format!("baserom.{}.z64", &self.spec.rom.region.to_string()));
+            .join(format!("baserom.{}.z64", self.spec.rom.region.to_string()));
 
-        run_callback!(
-            &self.callbacks.log_cb,
-            Info,
-            "copying the baserom into the correct location"
-        );
+        run_callback!(self.callbacks.log_cb, Info, "copying the ROM");
 
-        match fs::copy(&self.spec.rom.path, rom_copy_target) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(SmbuilderError::new(
-                Some(Box::new(e)),
-                format!(
-                    "failed to copy the rom from {} to {}: ",
+        if rom_type == BigEndian {
+            fs::copy(&self.spec.rom.path, &target_rom_path).unwrap_or_else(|_| {
+                panic!(
+                    "failed to copy the ROM from {} to {}!",
                     &self.spec.rom.path.display(),
-                    repo_dir.as_ref().display(),
-                ),
-            )),
+                    target_rom_path.display()
+                )
+            });
+        } else {
+            run_callback!(
+                self.callbacks.log_cb,
+                Warn,
+                "the ROM is not a z64 format ROM!"
+            );
+            run_callback!(
+                self.callbacks.log_cb,
+                Warn,
+                &format!("converting from a {:?} ROM", rom_type)
+            );
+
+            match rom_type {
+                LittleEndian => endian_swap(&self.spec.rom.path, &target_rom_path),
+                ByteSwapped => byte_swap(&self.spec.rom.path, &target_rom_path),
+                _ => unreachable!(),
+            }
         }
     }
 
     /// Creates the build script in the `base_dir`.
-    pub fn create_build_script<P: AsRef<Path>>(&self, repo_dir: P) -> Result<(), SmbuilderError> {
+    pub fn create_build_script<P: AsRef<Path>>(&mut self, repo_dir: P) {
+        run_callback!(self.callbacks.new_stage_cb, CreateBuildScript);
+
         let file_path = self.base_dir.join("build.sh");
 
-        let mut build_script = match fs::File::create(&file_path) {
-            Ok(file) => file,
-            Err(e) => {
-                return Err(SmbuilderError::new(
-                    Some(Box::new(e)),
-                    format!(
-                        "failed to create the build script at {}!",
-                        &file_path.display()
-                    ),
-                ))
-            }
-        };
+        run_callback!(self.callbacks.log_cb, Info, "arstarstarst");
 
-        match build_script.write_all(self.spec.get_build_script(repo_dir.as_ref()).as_bytes()) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(SmbuilderError::new(
-                    Some(Box::new(e)),
-                    format!(
-                        "failed to write to the build script at {}!",
-                        &file_path.display()
-                    ),
-                ))
-            }
-        };
+        let mut build_script =
+            fs::File::create(&file_path).expect("failed to create the build script file!");
+
+        let build_script_contents = self.spec.get_build_script(repo_dir.as_ref());
+
+        build_script
+            .write_all(build_script_contents.as_bytes())
+            .unwrap_or_else(|_| {
+                panic!(
+                    "failed to write to the build script at {}!",
+                    &file_path.display()
+                )
+            });
 
         make_file_executable(&file_path)
+            .unwrap_or_else(|_| panic!("failed to make the build script executable!"));
     }
 
-    fn setup_build(&self) {
-        (*self.builder).setup_build(self);
+    fn setup_build(&self, builder: &dyn Smbuilder) {
+        builder.setup_build(self);
     }
 
-    /// Wrapper function for the inner trait's build function.
-    pub fn build(&self) -> Result<(), SmbuilderError> {
+    /// Wrapper function that builds the spec with the
+    /// wrapper, and the given builder.
+    ///
+    /// TODO: example
+    pub fn build(&self, builder: &dyn Smbuilder) -> Result<(), SmbuilderError> {
         // set the build up first
-        self.setup_build();
+        self.setup_build(builder);
 
         // build
-        (*self.builder).build(self)
+        builder.build(self)
     }
 }
 
@@ -422,7 +408,7 @@ impl<'a> BuildWrapper<'a> {
 pub fn get_needed_setup_tasks<P: AsRef<Path>>(
     spec: &Spec,
     base_dir: P,
-    callbacks: &BuilderCallbacks,
+    callbacks: &mut Callbacks,
 ) -> Vec<SetupStage> {
     use SetupStage::*;
 
@@ -437,14 +423,6 @@ pub fn get_needed_setup_tasks<P: AsRef<Path>>(
     // check if the repo is cloned
     if !base_dir.join(&spec.repo.name).exists() {
         needed_stages.push(CloneRepo)
-    }
-
-    // check if the ROM is in the correct format
-    let format =
-        determine_format(&spec.rom.path).expect("The ROM's format could not be recognized");
-
-    if format != RomType::BigEndian {
-        needed_stages.push(ConvertRom)
     }
 
     // check if the rom exists
@@ -469,7 +447,7 @@ pub fn get_needed_setup_tasks<P: AsRef<Path>>(
         .join(", ");
 
     run_callback!(
-        &callbacks.log_cb,
+        callbacks.log_cb,
         Info,
         &format!("needed tasks: {}", needed_stages_string)
     );

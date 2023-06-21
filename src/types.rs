@@ -1,8 +1,8 @@
-use crate::{get_makeopts_string, SmbuilderError};
-use derive_builder::Builder;
-use std::fmt::Debug;
+use crate::{get_makeopts_string, run_callback, Callbacks, LogType, SmbuilderError};
+use n64romconvert::{determine_format, RomType};
 use std::fs;
 use std::path::Path;
+use std::{fmt::Debug, io::Error};
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -21,7 +21,7 @@ pub enum Region {
     JP,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 /// Represents a ROM file.
 pub struct Rom {
     /// The Region of the ROM Cartridge that
@@ -29,9 +29,11 @@ pub struct Rom {
     pub region: Region,
     /// The path of the ROM file on disk.
     pub path: PathBuf,
+    /// The format of the ROM file.
+    pub format: RomType,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 /// Represents a git repository with the
 /// source code of the a port.
 pub struct Repo {
@@ -91,8 +93,7 @@ pub struct TexturePack {
     pub enabled: bool,
 }
 
-#[derive(Default, Builder, Debug, Deserialize, Serialize)]
-#[builder(setter(into))]
+#[derive(Debug, Deserialize, Serialize)]
 /// Represents a build spec.
 ///
 /// All of its child structs implements
@@ -121,10 +122,22 @@ pub struct Spec {
 }
 
 impl Spec {
-    /// Creates a new spec, from a file.
+    /// # Please do not use this.
     ///
-    /// TODO: example
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Spec, SmbuilderError> {
+    /// **
+    /// It's only for users of
+    /// this crate that will perform
+    /// checks themselves, or
+    /// masochists!
+    /// **
+    ///
+    /// Creates a new spec, from a file,
+    /// but **doesn't check it**, which **may
+    /// lead to random panics**
+    ///
+    /// # Example
+    /// `Hey, you. why are you here? You shouldn't be using this at all!`
+    pub fn from_file_unchecked<P: AsRef<Path>>(path: P) -> Result<Spec, SmbuilderError> {
         let file_string = match fs::read_to_string(&path) {
             Ok(s) => s,
             Err(e) => {
@@ -146,6 +159,67 @@ impl Spec {
         };
 
         Ok(retval)
+    }
+
+    pub fn check_spec(&mut self, callbacks: &mut Callbacks) -> Result<(), SmbuilderError> {
+        use LogType::*;
+
+        // Check the ROM format and see
+        // if it matches the spec
+        let rom_path = if self.rom.path.exists() {
+            &self.rom.path
+        } else {
+            let file_not_found_error = std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("the file at {} was not found!", &self.rom.path.display()),
+            );
+            return Err(SmbuilderError::new(
+                Some(Box::new(file_not_found_error)),
+                "the ROM at the given path was not found!",
+            ));
+        };
+
+        let verified_rom_format = match determine_format(rom_path) {
+            Ok(t) => t,
+            Err(e) => {
+                return Err(SmbuilderError::new(
+                    Some(Box::new(e)),
+                    "failed to verify the ROM's format",
+                ))
+            }
+        };
+
+        if verified_rom_format != self.rom.format {
+            run_callback!(
+                callbacks.log_cb,
+                Warn,
+                &format!(
+                    "the ROM format specified in the spec ({:?}) does not match the file ({:?})!",
+                    self.rom.format, verified_rom_format
+                )
+            );
+        };
+
+        // Repo
+        // TODO: finnish writing the repo metadata first
+
+        // Jobs
+
+        if self.jobs.is_none() {
+            run_callback!(
+                callbacks.log_cb,
+                Warn,
+                "did not find a value for jobs in the spec!"
+            );
+
+            run_callback!(
+                callbacks.log_cb,
+                Warn,
+                "it is highly advised for you to specify the variable!"
+            );
+        }
+
+        Ok(())
     }
 
     /// Gets a build shell script, ready to be

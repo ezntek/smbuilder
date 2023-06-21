@@ -8,5 +8,5 @@ pub mod romconvert {
 pub use crate::builder::*;
 pub use crate::types::*;
 pub use crate::SmbuilderError;
-pub use crate::{get_makeopts_string, make_file_executable, BuilderCallbacks, LogType};
+pub use crate::{get_makeopts_string, make_file_executable, run_callback, Callbacks, LogType};
 pub use romconvert::*;
