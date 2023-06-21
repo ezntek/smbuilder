@@ -1,0 +1,56 @@
+sm64-port:
+  sm64-port:
+    name: sm64-port
+    url: https://github.com/sm64-port/sm64-port
+    branch: master
+    about: the OG PC-Port of Super Mario 64 to the PC.
+
+sm64ex:
+  sm64ex-nightly: 
+    name: sm64ex Nightly
+    url: https://github.com/sm64pc/sm64ex
+    branch: nightly
+    about: Nightly Release of the popular sm64ex port.
+  sm64ex-master:
+    name: sm64ex
+    url: https://github.com/sm64pc/sm64ex
+    branch: nightly
+    about: Stable Release of the popular sm64ex port.
+
+sm64ex-alo:
+  sm64ex-alo:
+    name: sm64ex-alo
+    url: https://github.com/AloXado320/sm64ex-alo
+    branch: master
+    about: A popular mod of sm64ex by AloXado320.
+
+render96ex:
+  render96ex-alpha:
+    name: Render96ex Alpha
+    url: https://github.com/Render96/render96ex
+    branch: alpha
+    about: An unstable (alpha) release of the widely popular Render96ex port.
+  render96ex-master:
+    name: Render96ex
+    url: https://github.com/Render96/render96ex
+    branch: master
+    about: The stable release of the widely popular Render96ex port.
+  render96ex-mac:
+    name: Render96ex macOS
+    url: https://github.com/flatmapthatshit/Render96ex_macOS
+    branch: alpha_macos
+    about: A fork of Render96ex to improve support on macOS devices.
+
+sm64ex-coop:
+  sm64ex-coop:
+    name: sm64ex Co-op
+    url: https://github.com/djoslin0/sm64ex-coop
+    branch: coop
+    about: A massively popular mod of sm64ex that adds online multiplayer and lua modding support.
+
+saturn:
+  Saturn:
+    name: Saturn
+    url: https://github.com/Llennpie/Saturn
+    branch: legacy
+    about: An all-in-one machinima studio for Super Mario 64, based on sm64ex.

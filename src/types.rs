@@ -47,13 +47,9 @@ pub struct Repo {
     pub url: String,
     /// The branch to clone from.
     pub branch: String,
-    /// Does this repo support
-    /// Dynamic Option System
-    /// datapacks? (DynOS)
-    pub supports_packs: bool,
-    /// Does this repo support
-    /// custom textures?
-    pub supports_textures: bool,
+    /// The description of what the
+    /// repo is, useful for launchers.
+    pub about: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -121,6 +117,7 @@ pub struct Spec {
     pub packs: Option<Vec<Datapack>>,
 }
 
+// TODO: write a SpecBuilder
 impl Spec {
     /// # Please do not use this.
     ///
@@ -222,10 +219,14 @@ impl Spec {
         Ok(())
     }
 
+    // TODO: write a from_file function that checks
+
     /// Gets a build shell script, ready to be
     /// written to disk.
     ///
     /// TODO: example
+
+    // TODO: platform dependent code
     pub fn get_build_script(&self, repo_path: &Path) -> String {
         let makeopts_string = if let Some(makeopts) = &self.makeopts {
             get_makeopts_string(makeopts)
