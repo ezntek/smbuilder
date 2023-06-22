@@ -19,10 +19,19 @@
 //!
 //! WIP
 
+/// The API and rust representation(s)
+/// of core build processes that are
+/// involved in building a port.
 pub mod builder;
 
+/// Enums related to some
+/// common make flags that people
+/// generally set.
 pub mod makeopts;
 
+/// All the logic and code
+/// that relates to the
+/// reproducible spec.
 pub mod spec;
 
 /// The prelude of this crate.
@@ -41,6 +50,10 @@ use std::fmt::Display;
 use std::{fs, os::unix::prelude::PermissionsExt, path::Path};
 
 #[macro_export]
+/// A macro to make writing
+/// a makeopt less painful.
+///
+/// TODO: example
 macro_rules! makeopt {
     ($key:expr, $value:expr) => {
         Makeopt::new($key, $value)
@@ -48,6 +61,16 @@ macro_rules! makeopt {
 }
 
 #[macro_export]
+/// Run a `Callbacks`
+/// callback, if it exists.
+///
+/// Does not panic if it
+/// does not exist. You
+/// also do need a mutable
+/// reference to the callback,
+/// as there are `FnMut`s.
+///
+/// TODO: example
 macro_rules! run_callback {
     ($callback:expr, $($cb_arg:tt)*) => {
         if let Some(callback) = &mut $callback {
@@ -56,11 +79,19 @@ macro_rules! run_callback {
     };
 }
 
+/// An enum to represent
+/// a log type, for the
+/// log callback.
 pub enum LogType {
+    /// Indicates an error.
     Error,
+    /// Indicates a warning.
     Warn,
+    /// Indicates some
+    /// build output.
     BuildOutput,
-    ScriptOutput,
+    /// Indicates some
+    /// info.
     Info,
 }
 
@@ -121,19 +152,57 @@ impl std::error::Error for SmbuilderError {
 // please
 // thanks
 
+/// Callback for a log event.
+///
+/// Args:
+///  * log type (error, warning, info, etc.)
+///  * text to log
 pub type LogCallback<'cb> = dyn FnMut(LogType, &str) + 'cb;
-pub type NewSetupStageCallback<'cb> = dyn FnMut(SetupStage) + 'cb;
-pub type NewPostBuildScriptCallback<'cb> = dyn FnMut(&str, &str) + 'cb;
-pub type RepoCloneProgressCallback<'cb> = dyn FnMut(f64) + 'cb;
 
+/// Callback for a new setup stage.
+///
+/// Args:
+///  * setup stage
+pub type NewSetupStageCallback<'cb> = dyn FnMut(SetupStage) + 'cb;
+
+/// Callback for when a new Post-Build script is run.
+///
+/// Args:
+///  * filename of the script
+///  * description of the script
+pub type NewPostBuildScriptCallback<'cb> = dyn FnMut(&str, &str) + 'cb;
+
+/// Callback for repository clone progress.
+///
+/// Args:
+///  * the percentage (0.0 - 1.0)
+///  * recieved bytes
+pub type RepoCloneProgressCallback<'cb> = dyn FnMut(f64, usize) + 'cb;
+
+/// A struct to store callbacks
+/// to hook various events during
+/// the build lifecycle to various
+/// functions.
+///
+/// TODO: example
 pub struct Callbacks<'cb> {
+    /// The log callback.
     pub log_cb: Option<Box<LogCallback<'cb>>>,
+    /// A callback that is invoked
+    /// on a new setup stage.
     pub new_stage_cb: Option<Box<NewSetupStageCallback<'cb>>>,
+    /// A callback that is invoked when
+    /// a new post-build script is being
+    /// run.
     pub new_postbuild_script_cb: Option<Box<NewPostBuildScriptCallback<'cb>>>,
+    /// A callback that pipes information
+    /// from git2's `RemoteCallbacks` to
+    /// provide info on clone progress.
     pub repo_clone_progress_cb: Option<Box<RepoCloneProgressCallback<'cb>>>,
 }
 
 impl<'cb> Callbacks<'cb> {
+    /// Create an empty callbacks set.
     pub fn empty() -> Self {
         Callbacks {
             log_cb: None,
@@ -143,6 +212,12 @@ impl<'cb> Callbacks<'cb> {
         }
     }
 
+    /// Set the log callback.
+    ///
+    /// See the docs on `LogCallback`
+    /// for more information on arguments.
+    ///
+    /// TODO: example
     pub fn log<F>(mut self, callback: F) -> Self
     where
         F: FnMut(LogType, &str) + 'cb,
@@ -151,6 +226,13 @@ impl<'cb> Callbacks<'cb> {
         self
     }
 
+    /// Set the new setup stage
+    /// callback.
+    ///
+    /// See the docs on `NewSetupStageCallback`
+    /// for more information on arguments.
+    ///
+    /// TODO: example.
     pub fn new_stage<F>(mut self, callback: F) -> Self
     where
         F: FnMut(SetupStage) + 'cb,
@@ -159,15 +241,29 @@ impl<'cb> Callbacks<'cb> {
         self
     }
 
+    /// Set the repo clone progress
+    /// callback.
+    ///
+    /// See the docs on `RepoCloneProgressCallback`
+    /// for more information on arguments.
+    ///
+    /// TODO: example
     pub fn repo_clone_progress<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(f64) + 'cb,
+        F: FnMut(f64, usize) + 'cb,
     {
         self.repo_clone_progress_cb =
             Some(Box::new(callback) as Box<RepoCloneProgressCallback<'cb>>);
         self
     }
 
+    /// Set the new post-build script
+    /// callback.
+    ///
+    /// See the docs on `NewPostBuildScriptCallback`
+    /// for more information on arguments.
+    ///
+    /// TODO: example
     pub fn new_postbuild_script<F>(mut self, callback: F) -> Self
     where
         F: FnMut(&str, &str) + 'cb,

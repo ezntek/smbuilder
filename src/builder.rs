@@ -1,5 +1,5 @@
-//! The API and rust representation(s) of core build processes that are involved in building a port.
-
+use git2::build::RepoBuilder;
+use git2::{FetchOptions, RemoteCallbacks};
 use n64romconvert::{byte_swap, endian_swap, RomType};
 
 use crate::prelude::{run_callback, Callbacks, LogType, Region};
@@ -26,25 +26,22 @@ pub enum SetupStage {
     /// Write the spec file to disk.
     WriteSpec,
 
-    /// Clone the repository
-    /// as per the info in the spec.
+    /// Clone the repository from
+    /// the spec.
     CloneRepo,
 
-    /// Copy the base ROM (to extract
-    /// the assets from) from the
-    /// specified location in the spec
-    /// to the correct location for the build.
+    /// Copy the base ROM (and converts
+    /// its format, if necessary) into
+    /// the repo's root for asset extraction.
     CopyRom,
 
-    /// Create the build script, containing
-    /// a small message and the (possibly long)
-    /// command to compile the port, after
-    /// it has been "prepared" (set up).
+    /// Create the build script.
     CreateBuildScript,
 
-    // TODO: write docs
+    /// Create the post-build scripts directory,
     CreateScriptsDir,
 
+    /// Write the Post-build scripts to disk.
     WritePostBuildScripts,
 }
 
@@ -72,7 +69,7 @@ impl ToString for SetupStage {
 ///
 /// TODO: example
 ///
-pub struct BuildWrapper<'a> {
+pub struct Builder<'a> {
     /// The spec that the build will be built with.
     pub spec: Spec,
 
@@ -83,7 +80,7 @@ pub struct BuildWrapper<'a> {
     pub callbacks: Callbacks<'a>,
 }
 
-impl<'a> BuildWrapper<'a> {
+impl<'a> Builder<'a> {
     /// Creates a new `BuildWrapper`.
     ///
     /// It creates the base directory from
@@ -103,10 +100,10 @@ impl<'a> BuildWrapper<'a> {
         spec: Spec,
         root_dir: P,
         mut callbacks: Callbacks,
-    ) -> Result<BuildWrapper, SmbuilderError> {
-        let base_dir = BuildWrapper::create_base_dir(&spec, root_dir, &mut callbacks);
+    ) -> Result<Builder, SmbuilderError> {
+        let base_dir = Builder::create_base_dir(&spec, root_dir, &mut callbacks);
 
-        let result = BuildWrapper {
+        let result = Builder {
             spec,
             base_dir,
             callbacks,
@@ -193,8 +190,26 @@ impl<'a> BuildWrapper<'a> {
 
         run_callback!(self.callbacks.log_cb, Info, "cloning the repository");
 
-        git2::build::RepoBuilder::new()
+        let mut remote_callbacks = RemoteCallbacks::new();
+        remote_callbacks.transfer_progress(|progress| {
+            let progress_percentage =
+                progress.received_objects() as f64 / progress.indexed_objects() as f64;
+
+            run_callback!(
+                self.callbacks.repo_clone_progress_cb,
+                progress_percentage,
+                progress.received_bytes()
+            );
+
+            true
+        });
+
+        let mut fetch_options = FetchOptions::new();
+        fetch_options.remote_callbacks(remote_callbacks);
+
+        RepoBuilder::new()
             .branch(&self.spec.repo.branch)
+            .fetch_options(fetch_options)
             .clone(&self.spec.repo.url, &repo_dir)
             .unwrap_or_else(|_| {
                 panic!(
@@ -275,6 +290,8 @@ impl<'a> BuildWrapper<'a> {
         make_file_executable(&file_path)
     }
 
+    /// Creates the post-build scripts
+    /// directory at `repo_dir/scripts`.
     pub fn create_scripts_dir<P: AsRef<Path>>(&mut self, repo_dir: P) -> PathBuf {
         run_callback!(self.callbacks.new_stage_cb, CreateScriptsDir);
 
@@ -288,6 +305,8 @@ impl<'a> BuildWrapper<'a> {
         scripts_dir
     }
 
+    /// Write the post-build scripts
+    /// from the spec onto disk.
     pub fn write_scripts<P: AsRef<Path>>(&mut self, scripts_dir: P) {
         run_callback!(self.callbacks.new_stage_cb, WritePostBuildScripts);
 
@@ -300,7 +319,7 @@ impl<'a> BuildWrapper<'a> {
         }
     }
 
-    pub fn setup_build(&mut self) {
+    fn setup_build(&mut self) {
         use SetupStage::*;
 
         let needed_targets =
@@ -329,34 +348,25 @@ impl<'a> BuildWrapper<'a> {
         }
     }
 
-    /// Wrapper function that builds the spec with the
-    /// wrapper, and the given builder.
-    ///
-    /// TODO: example
-    pub fn build(&mut self) -> Result<(), SmbuilderError> {
-        let build_cmdout = cmd!(self.base_dir.join("build.sh")).stderr_to_stdout();
-        let output = build_cmdout.reader().unwrap(); // FIXME: unwrap
+    fn compile(&mut self) {
+        let build_cmd = cmd!(self.base_dir.join("build.sh")).stderr_to_stdout();
+        let output = build_cmd.reader().unwrap(); // FIXME: unwrap
         let reader = BufReader::new(output);
 
         for line in reader.lines() {
             let ln = match line {
                 Ok(line) => line,
-                Err(e) => {
-                    return Err(SmbuilderError::new(
-                        Some(Box::new(e)),
-                        "the build command failed to run",
-                    ))
-                } // exit when there is no more output
-            };
+                Err(e) => panic!(
+                    "please report this if it comes up and here's the error: {}",
+                    e
+                ),
+            }; // exit when there is no more output
 
             run_callback!(self.callbacks.log_cb, BuildOutput, &ln);
         }
-
-        Ok(())
     }
 
-    // TODO: docs
-    pub fn post_build<P: AsRef<Path>>(&mut self, scripts_dir: P) {
+    fn post_build(&mut self) {
         if let Some(scripts) = &self.spec.scripts {
             for script in scripts {
                 run_callback!(
@@ -374,6 +384,15 @@ impl<'a> BuildWrapper<'a> {
                     .unwrap_or_else(|e| panic!("failed to run the command: {}", e));
             }
         }
+    }
+
+    /// Build the spec.
+    ///
+    /// TODO: example
+    pub fn build(&mut self) {
+        self.setup_build();
+        self.compile();
+        self.post_build();
     }
 }
 

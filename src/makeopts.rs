@@ -1,6 +1,11 @@
 use crate::{makeopt, prelude::*};
 
-// FIXME: docs
+#[allow(missing_docs)]
+
+/// A common set of make flags
+/// across all sm64ex-based
+/// builds. Useful for launchers
+/// who need checkboxes.
 pub enum BaseMakeopts {
     BetterCamera,
     NoDrawingDistance,
@@ -11,7 +16,11 @@ pub enum BaseMakeopts {
     DiscordPresence,
 }
 
-// FIXME: docs
+#[allow(missing_docs)]
+
+/// An extension of `BaseMakeopts`
+/// but with sm64ex-coop specific
+/// options.
 pub enum CoopMakeopts {
     Base(BaseMakeopts),
     ImmediateLoad,

@@ -13,11 +13,11 @@ check:
 	cargo clippy
 
 build:
-	ifeq ($(BUILDTYPE),release)
-		cargo build --release
-	else
-		cargo build
-	endif
+ifeq ($(BUILDTYPE),release)
+	cargo build --release
+else
+	cargo build
+endif
 
 clean: 
 ifneq (,$(CLEAN_DIRS))

@@ -36,45 +36,26 @@ pub struct Spec {
 
 // TODO: write a SpecBuilder
 impl Spec {
-    /// # Please do not use this.
-    ///
-    /// **
-    /// It's only for users of
-    /// this crate that will perform
-    /// checks themselves, or
-    /// masochists!
-    /// **
-    ///
     /// Creates a new spec, from a file,
     /// but **doesn't check it**, which **may
     /// lead to random panics**
     ///
-    /// # Example
-    /// `Hey, you. why are you here? You shouldn't be using this at all!`
-    pub fn from_file_unchecked<P: AsRef<Path>>(path: P) -> Result<Spec, SmbuilderError> {
-        let file_string = match fs::read_to_string(&path) {
-            Ok(s) => s,
-            Err(e) => {
-                return Err(SmbuilderError::new(
-                    Some(Box::new(e)),
-                    "Failed to read the file",
-                ))
-            }
-        };
+    /// TODO: example
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Spec {
+        let file_string =
+            fs::read_to_string(&path).unwrap_or_else(|e| panic!("failed to read the file: {}", e));
 
-        let retval = match serde_yaml::from_str::<Spec>(&file_string) {
-            Ok(s) => s,
-            Err(e) => {
-                return Err(SmbuilderError::new(
-                    Some(Box::new(e)),
-                    "Failed to parse the file into a yaml",
-                ))
-            }
-        };
-
-        Ok(retval)
+        serde_yaml::from_str::<Spec>(&file_string)
+            .unwrap_or_else(|e| panic!("failed to parse the file into a yaml: {}", e))
     }
 
+    /// Check the spec if it is valid or not,
+    /// returning an `SmbuilderError` if it fails
+    /// a mandatory check, and running the `log`
+    /// callback with `Warn` if it detects a small
+    /// imperfection.
+    ///
+    /// Designed for use with `from_file_checked`.
     pub fn check_spec(&mut self, callbacks: &mut Callbacks) -> Result<(), SmbuilderError> {
         use LogType::*;
 
@@ -114,9 +95,6 @@ impl Spec {
             );
         };
 
-        // Repo
-        // TODO: finnish writing the repo metadata first
-
         // Jobs
 
         if self.jobs.is_none() {
@@ -136,13 +114,29 @@ impl Spec {
         Ok(())
     }
 
-    // TODO: write a from_file function that checks
+    /// Creates a new spec from a file,
+    /// and checks it.
+    ///
+    /// TODO: example
+    pub fn from_file_checked<P: AsRef<Path>>(
+        path: P,
+        callbacks: &mut Callbacks,
+    ) -> Result<Spec, SmbuilderError> {
+        let mut spec = Spec::from_file(path);
+
+        let check_result = Spec::check_spec(&mut spec, callbacks);
+
+        if let Err(e) = check_result {
+            Err(e)
+        } else {
+            Ok(spec)
+        }
+    }
 
     /// Gets a build shell script, ready to be
     /// written to disk.
     ///
     /// TODO: example
-
     pub fn get_build_script(&self, repo_path: &Path) -> String {
         let makeopts_string = if let Some(makeopts) = &self.makeopts {
             get_makeopts_string(makeopts)
