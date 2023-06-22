@@ -6,7 +6,7 @@ use crate::prelude::{run_callback, Callbacks, LogType, Region};
 use crate::SmbuilderError;
 use crate::{make_file_executable, prelude::Spec};
 use duct::cmd;
-use std::io::{BufRead, BufReader, BufWriter};
+use std::io::{BufRead, BufReader};
 use std::{
     fs,
     io::Write,
@@ -291,7 +291,7 @@ impl<'a> BuildWrapper<'a> {
     pub fn write_scripts<P: AsRef<Path>>(&mut self, scripts_dir: P) {
         run_callback!(self.callbacks.new_stage_cb, WritePostBuildScripts);
 
-        if let Some(scripts) = &self.spec.scripts {
+        if let Some(scripts) = &mut self.spec.scripts {
             for script in scripts {
                 let script_path = script.save(&scripts_dir);
 
@@ -358,17 +358,20 @@ impl<'a> BuildWrapper<'a> {
     // TODO: docs
     pub fn post_build<P: AsRef<Path>>(&mut self, scripts_dir: P) {
         if let Some(scripts) = &self.spec.scripts {
-            for (script, script_file) in std::iter::zip(scripts, scripts_dir.as_ref())
-            // FIXME: this
-            {
+            for script in scripts {
                 run_callback!(
                     self.callbacks.new_postbuild_script_cb,
                     &script.name,
                     &script.description
                 );
 
-                let cmd = cmd!(script_file);
-                cmd.run();
+                let script_path = script.path.as_ref().unwrap_or_else(|| {
+                    panic!("failed to unwrap the script path (please report this bug!)")
+                });
+
+                let cmd = cmd!(script_path);
+                cmd.run()
+                    .unwrap_or_else(|e| panic!("failed to run the command: {}", e));
             }
         }
     }
@@ -425,6 +428,20 @@ pub fn get_needed_setup_tasks<P: AsRef<Path>>(
         Info,
         &format!("needed tasks: {}", needed_stages_string)
     );
+
+    // post-build script stuff
+    if !base_dir.join("scripts").exists() {
+        needed_stages.push(CreateScriptsDir)
+    }
+
+    if let Some(scripts) = &spec.scripts {
+        for script in scripts {
+            if script.path.is_none() {
+                needed_stages.push(WritePostBuildScripts);
+                continue;
+            }
+        }
+    }
 
     // return
     needed_stages

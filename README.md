@@ -14,7 +14,6 @@ In short, smbuilder (stylized as all lowercase) is a rust crate that provides an
 
 This project is licensed under the Apache 2.0 License. You can view the full license in the `LICENSE.md` file in the root of the project.
 
-## To-Do list
+## To-Dos
 
-* Write a module for this in pyo3
-* Write stubs for pyo3
+[TODO.md](/TODO.md)

@@ -102,6 +102,12 @@ pub struct PostBuildScript {
     /// The contents of the
     /// script, in shell format.
     pub contents: String,
+    /// The path to the build
+    /// script on disk. Will be
+    /// `None` if the script
+    /// has not been written to
+    /// disk yet.
+    pub path: Option<PathBuf>,
 }
 
 impl Makeopt {
@@ -112,24 +118,40 @@ impl Makeopt {
         }
     }
 
-    pub fn default_platform_makeopts() -> Vec<Self> {
+    pub fn default_makeopts() -> Vec<Self> {
         let mut makeopts: Vec<Makeopt> = Vec::new();
+
+        // make a macro to make life easier
+        macro_rules! push_makeopt {
+            ($key:expr,$value:expr) => {
+                makeopts.push(Makeopt::new($key, $value))
+            };
+        }
+
+        // enable external data
+        push_makeopt!("EXTERNAL_DATA", "1");
+
+        // force the modern APIs
+        push_makeopt!("RENDER_API", "GL");
+        push_makeopt!("WINDOW_API", "SDL2");
+        push_makeopt!("AUDIO_API", "SDL2");
+        push_makeopt!("CONTROLLER_API", "SDL2");
 
         // macOS stuff
         #[cfg(target_os = "macos")]
         #[cfg(target_arch = "x86_64")]
         {
-            makeopts.push(Makeopt::new("OSX_BUILD", "1"));
-            makeopts.push(Makeopt::new("TARGET_ARCH", "x86_64-apple-darwin"));
-            makeopts.push(Makeopt::new("TARGET_BITS", "64"));
+            push_makeopt!("OSX_BUILD", "1");
+            push_makeopt!("TARGET_ARCH", "x86_64-apple-darwin");
+            push_makeopt!("TARGET_BITS", "64");
         };
 
         #[cfg(target_os = "macos")]
         #[cfg(target_arch = "aarch64")]
         {
-            makeopts.push(Makeopt::new("OSX_BUILD", "1"));
-            makeopts.push(Makeopt::new("TARGET_ARCH", "aarch64-apple-darwin"));
-            makeopts.push(Makeopt::new("TARGET_BITS", "64"));
+            push_makeopt!("OSX_BUILD", "1");
+            push_makeopt!("TARGET_ARCH", "aarch64-apple-darwin");
+            push_makeopt!("TARGET_BITS", "64");
         };
 
         makeopts
@@ -149,10 +171,11 @@ impl PostBuildScript {
             name: name.to_string(),
             description: description.to_string(),
             contents: file_contents,
+            path: None,
         }
     }
 
-    pub fn save<P: AsRef<Path>>(&self, scripts_dir: P) -> PathBuf {
+    pub fn save<P: AsRef<Path>>(&mut self, scripts_dir: P) -> PathBuf {
         let mut script_path = scripts_dir.as_ref().join(&self.name);
         script_path.set_extension("sh");
 
@@ -174,6 +197,7 @@ impl PostBuildScript {
                 )
             });
 
+        self.path = Some(script_path.clone());
         script_path
     }
 }

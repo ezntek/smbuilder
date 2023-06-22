@@ -157,7 +157,7 @@ impl Spec {
         #[cfg(target_os = "linux")]
         let make_cmd = "make";
 
-        let platform_makeopts = get_makeopts_string(&Makeopt::default_platform_makeopts());
+        let platform_makeopts = get_makeopts_string(&Makeopt::default_makeopts());
 
         let jobs = self.jobs.unwrap_or(2);
 
