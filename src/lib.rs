@@ -3,6 +3,8 @@
 
 pub mod builder;
 
+pub mod spec;
+
 /// The prelude of this crate.
 pub mod prelude;
 
@@ -31,6 +33,7 @@ pub enum LogType {
     Error,
     Warn,
     BuildOutput,
+    ScriptOutput,
     Info,
 }
 
@@ -87,17 +90,19 @@ impl std::error::Error for SmbuilderError {
 // sexy callback time
 // O.O
 // im going insane help me
-// eason@eznetek.com
+// eason@ezntek.com
 // please
 // thanks
 
 pub type LogCallback<'cb> = dyn FnMut(LogType, &str) + 'cb;
-pub type NewStageCallback<'cb> = dyn FnMut(SetupStage) + 'cb;
+pub type NewSetupStageCallback<'cb> = dyn FnMut(SetupStage) + 'cb;
+pub type NewPostBuildScriptCallback<'cb> = dyn FnMut(&str, &str) + 'cb;
 pub type RepoCloneProgressCallback<'cb> = dyn FnMut(f64) + 'cb;
 
 pub struct Callbacks<'cb> {
     pub log_cb: Option<Box<LogCallback<'cb>>>,
-    pub new_stage_cb: Option<Box<NewStageCallback<'cb>>>,
+    pub new_stage_cb: Option<Box<NewSetupStageCallback<'cb>>>,
+    pub new_postbuild_script_cb: Option<Box<NewPostBuildScriptCallback<'cb>>>,
     pub repo_clone_progress_cb: Option<Box<RepoCloneProgressCallback<'cb>>>,
 }
 
@@ -106,6 +111,7 @@ impl<'cb> Callbacks<'cb> {
         Callbacks {
             log_cb: None,
             new_stage_cb: None,
+            new_postbuild_script_cb: None,
             repo_clone_progress_cb: None,
         }
     }
@@ -122,7 +128,7 @@ impl<'cb> Callbacks<'cb> {
     where
         F: FnMut(SetupStage) + 'cb,
     {
-        self.new_stage_cb = Some(Box::new(callback) as Box<NewStageCallback<'cb>>);
+        self.new_stage_cb = Some(Box::new(callback) as Box<NewSetupStageCallback<'cb>>);
         self
     }
 
@@ -132,6 +138,15 @@ impl<'cb> Callbacks<'cb> {
     {
         self.repo_clone_progress_cb =
             Some(Box::new(callback) as Box<RepoCloneProgressCallback<'cb>>);
+        self
+    }
+
+    pub fn new_postbuild_script<F>(mut self, callback: F) -> Self
+    where
+        F: FnMut(&str, &str) + 'cb,
+    {
+        self.new_postbuild_script_cb =
+            Some(Box::new(callback) as Box<NewPostBuildScriptCallback<'cb>>);
         self
     }
 }
@@ -152,33 +167,26 @@ pub fn get_makeopts_string(makeopts: &[Makeopt]) -> String {
 
 /// Make a file executable.
 /// Equivalent to `chmod +x`.
-pub fn make_file_executable(path: &Path) -> Result<(), SmbuilderError> {
-    let file_metadata = match fs::metadata(path) {
-        Ok(metadata) => metadata,
-        Err(e) => {
-            return Err(SmbuilderError::new(
-                Some(Box::new(e)),
-                format!(
-                    "failed to get the metadata of the file at {}",
-                    &path.display()
-                ),
-            ))
-        }
-    };
+pub fn make_file_executable(path: &Path) {
+    let file_metadata = fs::metadata(path).unwrap_or_else(|e| {
+        panic!(
+            "failed to get the metadata of the file at {}: {}",
+            &path.display(),
+            e
+        )
+    });
 
-    match fs::set_permissions(
+    fs::set_permissions(
         path,
         fs::Permissions::from_mode(
             file_metadata.permissions().mode() + 0o111, // equivalent of a chmod +x.
         ),
-    ) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(SmbuilderError::new(
-            Some(Box::new(e)),
-            format!(
-                "failed to set permissions on the file at {}",
-                &path.display(),
-            ),
-        )),
-    }
+    )
+    .unwrap_or_else(|e| {
+        panic!(
+            "failed to set permissions on the file at {}: {}",
+            &path.display(),
+            e
+        )
+    });
 }

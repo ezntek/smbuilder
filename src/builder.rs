@@ -5,6 +5,8 @@ use n64romconvert::{byte_swap, endian_swap, RomType};
 use crate::prelude::{run_callback, Callbacks, LogType, Region};
 use crate::SmbuilderError;
 use crate::{make_file_executable, prelude::Spec};
+use duct::cmd;
+use std::io::{BufRead, BufReader, BufWriter};
 use std::{
     fs,
     io::Write,
@@ -13,124 +15,6 @@ use std::{
 
 use LogType::*;
 use SetupStage::*;
-
-/// A trait to represent a builder struct.
-///
-/// **Note:** Structs that implements this trait
-/// will be wrapped by and will take
-/// in a `BuildWrapper`.
-///
-/// Implementors must implement custom logic for
-/// handling the possilbe errors from the provided
-/// setup functions in the wrapper and their
-/// implementation of running the build script generated
-/// by `create_build_script`.
-///
-/// ```rust
-/// use smbuilder::prelude::*;
-/// # struct MyLogger;
-/// # impl Log for MyLogger {
-/// #     fn log_error(&self, text: &str) {
-/// #         println!("{}", text)
-/// #     }
-/// #     fn log_build_output(&self, text: &str) {
-/// #         println!("{}", text)
-/// #     }
-/// #     fn log_warn(&self, text: &str) {
-/// #         println!("{}", text)
-/// #     }
-/// #     fn log_info(&self, text: &str) {
-/// #         println!("{}", text)
-/// #     }
-/// # }
-/// struct MyBuilder;
-///
-/// impl Smbuilder for MyBuilder {
-///     fn setup_build(&self, wrapper: &BuildWrapper) {
-///         // Get the needed setup tasks first: it eliminates
-///         // the need to unnecessarily perform all setup
-///         // steps.
-///         let needed_setup_tasks = get_needed_setup_tasks(
-///             &wrapper.spec,
-///             &wrapper.base_dir,
-///             &MyLogger // see the docs for how to implement a logger
-///         );
-///
-///         // run the setup tasks and handle
-///         // errors as you see fit
-///         wrapper.write_spec()
-///             .unwrap();
-///
-///         wrapper.clone_repo()
-///             .expect("failed to clone the repo!");
-///
-///         // log something with the logger, as you see fit.
-///         (*wrapper.logger) // TODO: fix whatever this is
-///             .log_info("done cloning the repo!");
-///
-///         // ...
-///         // Contile handling the errors from those tasks.
-///
-///     }
-///
-///     fn build(&self, wrapper: &BuildWrapper) -> Result<(), SmbuilderError> {
-///         // use a `std::process:Command` to run the
-///         // build script at `base_dir/build.sh`
-///         let mut command = std::process::Command::new(wrapper.base_dir.join("build.sh"));
-///         
-///         // spawn the command
-///         let mut child = command.spawn().unwrap();
-///         
-///         // this blocks the current function!
-///         // use a `Stdio::piped()` and a `BufReader`
-///         // if you want to stream the build output
-///         // into something.
-///         match child.wait() {
-///             Ok(_) => Ok(()),
-///             Err(e) => Err(SmbuilderError::new(
-///                Some(Box::new(e)),
-///                "some error happened!"
-///             )),
-///         }
-///     }
-/// }
-/// ```
-///
-/// implementors must do this as the different
-/// use cases for this crate will need different
-/// ways of handling errors that are thrown
-/// from core functions like these. As an example,
-/// a GUI may need to spawn an error dialog, but a
-/// CLI may just panic, etc.
-///
-/// ## warning
-///
-/// It is highly recommended that you follow
-/// the output from `get_needed_setep_tasks()`, as
-/// it tells you which steps you would need to call.
-///
-/// If not, it is still important to perform all
-/// tasks listed, as these tasks are required for a
-/// build to function.
-pub trait Smbuilder {
-    /// The build setup function.
-    ///
-    /// This is where one implements custom logic
-    /// to handle `SmbuilderError`s that may be
-    /// returned from the wrapper's given setup functions.
-    fn setup_build(&self, wrapper: &BuildWrapper);
-
-    /// The build function.
-    ///
-    /// This is where one implements custom logic
-    /// behind running the build script provided by
-    /// `create_build_script` from the wrapper class.
-    ///
-    /// Should return an `SmbuilderError` if the build
-    /// fails due to any reason (child process with a
-    /// failure exit code, some other error, etc.)
-    fn build(&self, wrapper: &BuildWrapper) -> Result<(), SmbuilderError>;
-}
 
 #[derive(Debug)]
 /// An enum to represent the different "setup stages"
@@ -157,6 +41,11 @@ pub enum SetupStage {
     /// command to compile the port, after
     /// it has been "prepared" (set up).
     CreateBuildScript,
+
+    // TODO: write docs
+    CreateScriptsDir,
+
+    WritePostBuildScripts,
 }
 
 impl ToString for SetupStage {
@@ -168,6 +57,8 @@ impl ToString for SetupStage {
             CloneRepo => "clone the repository",
             CopyRom => "copy the base ROM",
             CreateBuildScript => "create the build script",
+            CreateScriptsDir => "create the post-build script folder",
+            WritePostBuildScripts => "write the post-build scripts",
         };
 
         result.to_owned()
@@ -382,29 +273,112 @@ impl<'a> BuildWrapper<'a> {
             });
 
         make_file_executable(&file_path)
-            .unwrap_or_else(|_| panic!("failed to make the build script executable!"));
     }
 
-    fn setup_build(&self, builder: &dyn Smbuilder) {
-        builder.setup_build(self);
+    pub fn create_scripts_dir<P: AsRef<Path>>(&mut self, repo_dir: P) -> PathBuf {
+        run_callback!(self.callbacks.new_stage_cb, CreateScriptsDir);
+
+        let scripts_dir = repo_dir.as_ref().join("scripts");
+
+        if !scripts_dir.exists() {
+            fs::create_dir(&scripts_dir)
+                .unwrap_or_else(|e| panic!("failed to create the build scripts dir: {}", e));
+        }
+
+        scripts_dir
+    }
+
+    pub fn write_scripts<P: AsRef<Path>>(&mut self, scripts_dir: P) {
+        run_callback!(self.callbacks.new_stage_cb, WritePostBuildScripts);
+
+        if let Some(scripts) = &self.spec.scripts {
+            for script in scripts {
+                let script_path = script.save(&scripts_dir);
+
+                make_file_executable(&script_path);
+            }
+        }
+    }
+
+    pub fn setup_build(&mut self) {
+        use SetupStage::*;
+
+        let needed_targets =
+            get_needed_setup_tasks(&self.spec, &self.base_dir, &mut self.callbacks);
+
+        let repo_dir = self.base_dir.join(&self.spec.repo.name);
+        let scripts_dir = repo_dir.join("scripts");
+
+        for target in needed_targets {
+            match target {
+                WriteSpec => self.write_spec(),
+                CloneRepo => {
+                    let _ = self.clone_repo();
+                }
+                CopyRom => {
+                    self.copy_rom(&repo_dir);
+                }
+                CreateBuildScript => {
+                    self.create_build_script(&repo_dir);
+                }
+                CreateScriptsDir => {
+                    let _ = self.create_scripts_dir(&repo_dir);
+                }
+                WritePostBuildScripts => self.write_scripts(&scripts_dir),
+            }
+        }
     }
 
     /// Wrapper function that builds the spec with the
     /// wrapper, and the given builder.
     ///
     /// TODO: example
-    pub fn build(&self, builder: &dyn Smbuilder) -> Result<(), SmbuilderError> {
-        // set the build up first
-        self.setup_build(builder);
+    pub fn build(&mut self) -> Result<(), SmbuilderError> {
+        let build_cmdout = cmd!(self.base_dir.join("build.sh")).stderr_to_stdout();
+        let output = build_cmdout.reader().unwrap(); // FIXME: unwrap
+        let reader = BufReader::new(output);
 
-        // build
-        builder.build(self)
+        for line in reader.lines() {
+            let ln = match line {
+                Ok(line) => line,
+                Err(e) => {
+                    return Err(SmbuilderError::new(
+                        Some(Box::new(e)),
+                        "the build command failed to run",
+                    ))
+                } // exit when there is no more output
+            };
+
+            run_callback!(self.callbacks.log_cb, BuildOutput, &ln);
+        }
+
+        Ok(())
+    }
+
+    // TODO: docs
+    pub fn post_build<P: AsRef<Path>>(&mut self, scripts_dir: P) {
+        if let Some(scripts) = &self.spec.scripts {
+            for (script, script_file) in std::iter::zip(scripts, scripts_dir.as_ref())
+            // FIXME: this
+            {
+                run_callback!(
+                    self.callbacks.new_postbuild_script_cb,
+                    &script.name,
+                    &script.description
+                );
+
+                let cmd = cmd!(script_file);
+                cmd.run();
+            }
+        }
     }
 }
 
 /// Get the core setup tasks that are needed.
 ///
 /// Returns a list of `SmbuilderSetupStage`.
+
+/// FIXME: post build scripts stuff
 pub fn get_needed_setup_tasks<P: AsRef<Path>>(
     spec: &Spec,
     base_dir: P,

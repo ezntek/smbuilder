@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 colored = "2.0.0"
+duct = "0.13.6"
 git2 = "0.17.1"
 n64romconvert = "1.0.2"
 serde = { version = "1.0.162", features = ["serde_derive"] }

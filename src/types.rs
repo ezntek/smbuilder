@@ -1,8 +1,10 @@
-use crate::{get_makeopts_string, run_callback, Callbacks, LogType, SmbuilderError};
-use n64romconvert::{determine_format, RomType};
-use std::fs;
-use std::path::Path;
-use std::{fmt::Debug, io::Error};
+use crate::prelude::*;
+use std::{
+    fmt::Debug,
+    fs,
+    io::{BufWriter, Write},
+    path::Path,
+};
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -63,192 +65,115 @@ pub struct Makeopt {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
-/// Represents a data pack (DynOS).
-pub struct Datapack {
-    /// The label of the pack,
-    /// for the launcher.
-    pub label: String,
-    /// Where the location of
-    /// the pack is on disk.
+/// Represents a patch.
+pub struct Patch {
+    /// The name (label) of
+    /// the patch, for use
+    /// with launchers,
+    pub name: String,
+    /// The location of the
+    /// path file on disk.
     pub path: PathBuf,
-    /// If the pack is enabled
-    /// or not. Used for the
-    /// hard-disable functionality.
-    pub enabled: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct DynosPack {
+    /// The name of the
+    /// DynOS pack, for
+    /// use with launchers.
+    pub name: String,
+
+    /// The location of
+    /// the pack, on disk.
+    pub path: PathBuf,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 /// Represents a texture pack.
-pub struct TexturePack {
-    /// Where the location of
-    /// the pack is on disk.
-    pub path: PathBuf,
-    /// If the pack is enabled
-    /// or not. Used for the
-    /// hard-disable feature.
-    pub enabled: bool,
+pub struct PostBuildScript {
+    /// The name of the script,
+    /// to be used as the file
+    /// name, with a .sh appended.
+    pub name: String,
+    /// A human readable
+    /// description of the
+    /// script.
+    pub description: String,
+    /// The contents of the
+    /// script, in shell format.
+    pub contents: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-/// Represents a build spec.
-///
-/// All of its child structs implements
-/// `Deserialize` and `Serialize`, and a
-/// spec file is derived directly from this
-/// structure.
-pub struct Spec {
-    /// The ROM to extract assets out of.
-    pub rom: Rom,
-    /// The repository to build from.
-    pub repo: Repo,
-    /// Amount of compile jobs that are
-    /// allowed for the compiler. Will
-    /// be used to set the `-j` flag
-    /// during compile time.
-    pub jobs: Option<u8>,
-    /// A custom name.
-    pub name: Option<String>,
-    /// Make flags to be passed to the
-    /// compiler.
-    pub makeopts: Option<Vec<Makeopt>>,
-    /// A texture pack, if supported.
-    pub texture_pack: Option<TexturePack>,
-    /// Datapacks, if supported.
-    pub packs: Option<Vec<Datapack>>,
-}
-
-// TODO: write a SpecBuilder
-impl Spec {
-    /// # Please do not use this.
-    ///
-    /// **
-    /// It's only for users of
-    /// this crate that will perform
-    /// checks themselves, or
-    /// masochists!
-    /// **
-    ///
-    /// Creates a new spec, from a file,
-    /// but **doesn't check it**, which **may
-    /// lead to random panics**
-    ///
-    /// # Example
-    /// `Hey, you. why are you here? You shouldn't be using this at all!`
-    pub fn from_file_unchecked<P: AsRef<Path>>(path: P) -> Result<Spec, SmbuilderError> {
-        let file_string = match fs::read_to_string(&path) {
-            Ok(s) => s,
-            Err(e) => {
-                return Err(SmbuilderError::new(
-                    Some(Box::new(e)),
-                    "Failed to read the file",
-                ))
-            }
-        };
-
-        let retval = match serde_yaml::from_str::<Spec>(&file_string) {
-            Ok(s) => s,
-            Err(e) => {
-                return Err(SmbuilderError::new(
-                    Some(Box::new(e)),
-                    "Failed to parse the file into a yaml",
-                ))
-            }
-        };
-
-        Ok(retval)
-    }
-
-    pub fn check_spec(&mut self, callbacks: &mut Callbacks) -> Result<(), SmbuilderError> {
-        use LogType::*;
-
-        // Check the ROM format and see
-        // if it matches the spec
-        let rom_path = if self.rom.path.exists() {
-            &self.rom.path
-        } else {
-            let file_not_found_error = std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("the file at {} was not found!", &self.rom.path.display()),
-            );
-            return Err(SmbuilderError::new(
-                Some(Box::new(file_not_found_error)),
-                "the ROM at the given path was not found!",
-            ));
-        };
-
-        let verified_rom_format = match determine_format(rom_path) {
-            Ok(t) => t,
-            Err(e) => {
-                return Err(SmbuilderError::new(
-                    Some(Box::new(e)),
-                    "failed to verify the ROM's format",
-                ))
-            }
-        };
-
-        if verified_rom_format != self.rom.format {
-            run_callback!(
-                callbacks.log_cb,
-                Warn,
-                &format!(
-                    "the ROM format specified in the spec ({:?}) does not match the file ({:?})!",
-                    self.rom.format, verified_rom_format
-                )
-            );
-        };
-
-        // Repo
-        // TODO: finnish writing the repo metadata first
-
-        // Jobs
-
-        if self.jobs.is_none() {
-            run_callback!(
-                callbacks.log_cb,
-                Warn,
-                "did not find a value for jobs in the spec!"
-            );
-
-            run_callback!(
-                callbacks.log_cb,
-                Warn,
-                "it is highly advised for you to specify the variable!"
-            );
+impl Makeopt {
+    pub fn new<S: ToString>(key: S, value: S) -> Self {
+        Makeopt {
+            key: key.to_string(),
+            value: value.to_string(),
         }
-
-        Ok(())
     }
 
-    // TODO: write a from_file function that checks
+    pub fn default_platform_makeopts() -> Vec<Self> {
+        let mut makeopts: Vec<Makeopt> = Vec::new();
 
-    /// Gets a build shell script, ready to be
-    /// written to disk.
-    ///
-    /// TODO: example
-
-    // TODO: platform dependent code
-    pub fn get_build_script(&self, repo_path: &Path) -> String {
-        let makeopts_string = if let Some(makeopts) = &self.makeopts {
-            get_makeopts_string(makeopts)
-        } else {
-            String::new()
+        // macOS stuff
+        #[cfg(target_os = "macos")]
+        #[cfg(target_arch = "x86_64")]
+        {
+            makeopts.push(Makeopt::new("OSX_BUILD", "1"));
+            makeopts.push(Makeopt::new("TARGET_ARCH", "x86_64-apple-darwin"));
+            makeopts.push(Makeopt::new("TARGET_BITS", "64"));
         };
 
-        let jobs = self.jobs.unwrap_or(2);
+        #[cfg(target_os = "macos")]
+        #[cfg(target_arch = "aarch64")]
+        {
+            makeopts.push(Makeopt::new("OSX_BUILD", "1"));
+            makeopts.push(Makeopt::new("TARGET_ARCH", "aarch64-apple-darwin"));
+            makeopts.push(Makeopt::new("TARGET_BITS", "64"));
+        };
 
-        format!(
-            "
-#!/bin/sh
+        makeopts
+    }
+}
 
-# Script Generated by smbuilder.
-# DO NOT EDIT; YOUR CHANGES
-# WILL NOT BE SAVED.
+impl PostBuildScript {
+    pub fn from_file<S, P>(name: S, description: S, file: P) -> Self
+    where
+        S: ToString,
+        P: AsRef<Path>,
+    {
+        let file_contents = fs::read_to_string(file)
+            .unwrap_or_else(|e| panic!("failed to read the post build script: {}", e));
 
-make -C {} {} -j{}
-        ",
-            repo_path.display(),
-            makeopts_string,
-            jobs
-        )
+        PostBuildScript {
+            name: name.to_string(),
+            description: description.to_string(),
+            contents: file_contents,
+        }
+    }
+
+    pub fn save<P: AsRef<Path>>(&self, scripts_dir: P) -> PathBuf {
+        let mut script_path = scripts_dir.as_ref().join(&self.name);
+        script_path.set_extension("sh");
+
+        let mut script_file = BufWriter::new(fs::File::create(&script_path).unwrap_or_else(|e| {
+            panic!(
+                "failed to create the file at {}: {}",
+                script_path.display(),
+                e
+            )
+        }));
+
+        script_file
+            .write_all(self.contents.as_bytes())
+            .unwrap_or_else(|e| {
+                panic!(
+                    "failed to write the file to {}: {}",
+                    script_path.display(),
+                    e
+                )
+            });
+
+        script_path
     }
 }
