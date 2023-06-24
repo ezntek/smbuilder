@@ -15,12 +15,13 @@ use std::path::PathBuf;
 pub enum Region {
     #[default]
     /// A rom pulled from a US cartridge.
-    US,
-
+    Us,
     /// A rom pulled from a European cartridge (EU).
-    EU,
+    Eu,
     /// A rom pulled from a Japanese cartridge.
-    JP,
+    Jp,
+    /// A rom pulled from a Japanese Shindou cartridge.
+    Sh,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -35,7 +36,30 @@ pub struct Rom {
     pub format: RomType,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+impl Default for Rom {
+    fn default() -> Self {
+        Rom {
+            region: Region::Us,
+            path: PathBuf::new(),
+            format: RomType::BigEndian,
+        }
+    }
+}
+
+impl Rom {
+    /// Creates a new `Rom`.
+    ///
+    // TODO: example
+    pub fn new<P: AsRef<Path>>(region: Region, path: P, rom_format: RomType) -> Self {
+        Rom {
+            region,
+            path: path.as_ref().to_owned(),
+            format: rom_format,
+        }
+    }
+}
+
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
 /// Represents a git repository with the
 /// source code of the a port.
 pub struct Repo {
@@ -77,6 +101,17 @@ pub struct Patch {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+/// A structure to represent
+/// a DynOS (Dynamic Options
+/// System) Datapack.
+///
+/// These packs can store
+/// either just options
+/// (sets of settings/options),
+/// or other metadata with it
+/// (how model packs work).
+///
+// TODO: example
 pub struct DynosPack {
     /// The name of the
     /// DynOS pack, for
@@ -111,6 +146,9 @@ pub struct PostBuildScript {
 }
 
 impl Makeopt {
+    /// Creates a new `Makeopt`.
+    ///
+    // TODO: example
     pub fn new<S: ToString>(key: S, value: S) -> Self {
         Makeopt {
             key: key.to_string(),
@@ -118,6 +156,12 @@ impl Makeopt {
         }
     }
 
+    /// Gets a list of default
+    /// makeopts with sane
+    /// defaults, and options
+    /// for the current OS.
+    ///
+    // TODO: example
     pub fn default_makeopts() -> Vec<Self> {
         let mut makeopts: Vec<Makeopt> = Vec::new();
 
@@ -159,6 +203,10 @@ impl Makeopt {
 }
 
 impl PostBuildScript {
+    /// Creates a post-build script from
+    /// a `Path`.
+    ///
+    // TODO: example
     pub fn from_file<S, P>(name: S, description: S, file: P) -> Self
     where
         S: ToString,
@@ -175,6 +223,11 @@ impl PostBuildScript {
         }
     }
 
+    /// Saves a post-build script from
+    /// a `String` in memory to a
+    /// File path.
+    ///
+    // TODO: example
     pub fn save<P: AsRef<Path>>(&mut self, scripts_dir: P) -> PathBuf {
         let mut script_path = scripts_dir.as_ref().join(&self.name);
         script_path.set_extension("sh");

@@ -1,10 +1,11 @@
 use crate::prelude::*;
 use crate::romconvert::determine_format;
+use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Builder, Deserialize, Serialize)]
 /// Represents a build spec.
 ///
 /// All of its child structs implements
@@ -34,13 +35,12 @@ pub struct Spec {
     pub scripts: Option<Vec<PostBuildScript>>,
 }
 
-// TODO: write a SpecBuilder
 impl Spec {
     /// Creates a new spec, from a file,
     /// but **doesn't check it**, which **may
     /// lead to random panics**
     ///
-    /// TODO: example
+    // TODO: example
     pub fn from_file<P: AsRef<Path>>(path: P) -> Spec {
         let file_string =
             fs::read_to_string(&path).unwrap_or_else(|e| panic!("failed to read the file: {}", e));
@@ -117,7 +117,7 @@ impl Spec {
     /// Creates a new spec from a file,
     /// and checks it.
     ///
-    /// TODO: example
+    // TODO: example
     pub fn from_file_checked<P: AsRef<Path>>(
         path: P,
         callbacks: &mut Callbacks,
@@ -136,7 +136,7 @@ impl Spec {
     /// Gets a build shell script, ready to be
     /// written to disk.
     ///
-    /// TODO: example
+    //  TODO: example
     pub fn get_build_script(&self, repo_path: &Path) -> String {
         let makeopts_string = if let Some(makeopts) = &self.makeopts {
             get_makeopts_string(makeopts)

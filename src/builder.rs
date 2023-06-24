@@ -62,12 +62,32 @@ impl ToString for SetupStage {
     }
 }
 
-/// The wrapper struct for an `Smbuilder` implementor.
+/// The main builder class which takes care of building
+/// a spec.
 ///
 /// Includes fields and methods that makes up the core of
 /// any smbuilder-derived app.
 ///
-/// TODO: example
+/// # Example
+///
+/// ```rust
+/// use smbuilder::prelude::*;
+///
+/// fn main() {
+///     // set your callbacks up first
+///     let mut callbacks = Callbacks::empty();
+///
+///     // and your spec
+///     let my_spec = Spec::from_file("path/to/my/smbuilder.yaml")
+///
+///     // set up your builder
+///     let mut builder = Builder::new(my_spec, "path/to/the/root/dir", mut callbacks);
+///
+///     // compile the spec, with the specified callbacks.
+///     builder.build();
+/// }
+///
+/// ```
 ///
 pub struct Builder<'a> {
     /// The spec that the build will be built with.
@@ -81,7 +101,7 @@ pub struct Builder<'a> {
 }
 
 impl<'a> Builder<'a> {
-    /// Creates a new `BuildWrapper`.
+    /// Creates a new `Builder`.
     ///
     /// It creates the base directory from
     /// the parameter `root_dir`, which **is not**
@@ -91,11 +111,17 @@ impl<'a> Builder<'a> {
     /// chooses to put it into a location such as
     /// `$HOME/.local/share`, for frontends.
     ///
-    /// It takes in a runnable settings instance
-    /// for actions such as logging.
+    /// It takes in the callbacks, for events that
+    /// may happen during the build process.
     ///
+    /// # Example
     ///
-    ///
+    /// ```no_run
+    /// # fn main() {
+    /// let mut builder = Builder::new(my_spec, my_root_dir, my_callbacks)
+    /// // you must have your spec, root dir and callbacks set up beforehand!
+    /// # }
+    /// ```
     pub fn new<P: AsRef<Path>>(
         spec: Spec,
         root_dir: P,
@@ -350,7 +376,9 @@ impl<'a> Builder<'a> {
 
     fn compile(&mut self) {
         let build_cmd = cmd!(self.base_dir.join("build.sh")).stderr_to_stdout();
-        let output = build_cmd.reader().unwrap(); // FIXME: unwrap
+        let output = build_cmd
+            .reader()
+            .unwrap_or_else(|e| panic!("failed to get a reader from the command: {}", e));
         let reader = BufReader::new(output);
 
         for line in reader.lines() {
@@ -388,7 +416,16 @@ impl<'a> Builder<'a> {
 
     /// Build the spec.
     ///
-    /// TODO: example
+    /// # Example
+    ///
+    /// ```no_run
+    /// let mut builder = Builder::new(my_spec, my_root_dir, my_callbacks);
+    /// // you must have your spec, root dir and callbacks set up beforehand!
+    ///
+    /// // builds the spec, takes a mutable reference
+    /// // to itself for the callbacks.
+    /// builder.build();
+    /// ```
     pub fn build(&mut self) {
         self.setup_build();
         self.compile();
@@ -399,8 +436,7 @@ impl<'a> Builder<'a> {
 /// Get the core setup tasks that are needed.
 ///
 /// Returns a list of `SmbuilderSetupStage`.
-
-/// FIXME: post build scripts stuff
+// TODO: example
 pub fn get_needed_setup_tasks<P: AsRef<Path>>(
     spec: &Spec,
     base_dir: P,
@@ -471,9 +507,10 @@ impl ToString for Region {
         use Region::*;
 
         let retval = match self {
-            US => "us",
-            EU => "eu",
-            JP => "jp",
+            Us => "us",
+            Eu => "eu",
+            Jp => "jp",
+            Sh => "sh",
         };
 
         retval.to_owned()

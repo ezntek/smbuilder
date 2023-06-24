@@ -53,7 +53,7 @@ use std::{fs, os::unix::prelude::PermissionsExt, path::Path};
 /// A macro to make writing
 /// a makeopt less painful.
 ///
-/// TODO: example
+// TODO: example
 macro_rules! makeopt {
     ($key:expr, $value:expr) => {
         Makeopt::new($key, $value)
@@ -70,7 +70,7 @@ macro_rules! makeopt {
 /// reference to the callback,
 /// as there are `FnMut`s.
 ///
-/// TODO: example
+// TODO: example
 macro_rules! run_callback {
     ($callback:expr, $($cb_arg:tt)*) => {
         if let Some(callback) = &mut $callback {
@@ -184,7 +184,7 @@ pub type RepoCloneProgressCallback<'cb> = dyn FnMut(f64, usize) + 'cb;
 /// the build lifecycle to various
 /// functions.
 ///
-/// TODO: example
+// TODO: example
 pub struct Callbacks<'cb> {
     /// The log callback.
     pub log_cb: Option<Box<LogCallback<'cb>>>,
@@ -217,7 +217,7 @@ impl<'cb> Callbacks<'cb> {
     /// See the docs on `LogCallback`
     /// for more information on arguments.
     ///
-    /// TODO: example
+    // TODO: example
     pub fn log<F>(mut self, callback: F) -> Self
     where
         F: FnMut(LogType, &str) + 'cb,
@@ -232,7 +232,7 @@ impl<'cb> Callbacks<'cb> {
     /// See the docs on `NewSetupStageCallback`
     /// for more information on arguments.
     ///
-    /// TODO: example.
+    // TODO: example.
     pub fn new_stage<F>(mut self, callback: F) -> Self
     where
         F: FnMut(SetupStage) + 'cb,
@@ -247,7 +247,7 @@ impl<'cb> Callbacks<'cb> {
     /// See the docs on `RepoCloneProgressCallback`
     /// for more information on arguments.
     ///
-    /// TODO: example
+    // TODO: example
     pub fn repo_clone_progress<F>(mut self, callback: F) -> Self
     where
         F: FnMut(f64, usize) + 'cb,
@@ -263,7 +263,7 @@ impl<'cb> Callbacks<'cb> {
     /// See the docs on `NewPostBuildScriptCallback`
     /// for more information on arguments.
     ///
-    /// TODO: example
+    // TODO: example
     pub fn new_postbuild_script<F>(mut self, callback: F) -> Self
     where
         F: FnMut(&str, &str) + 'cb,

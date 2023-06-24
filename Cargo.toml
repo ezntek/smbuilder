@@ -12,3 +12,4 @@ git2 = "0.17.1"
 n64romconvert = "1.0.2"
 serde = { version = "1.0.162", features = ["serde_derive"] }
 serde_yaml = "0.9.21"
+derive_builder = "0.12.0"
