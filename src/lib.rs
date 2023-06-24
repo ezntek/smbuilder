@@ -18,6 +18,7 @@
 //! ## Usage
 //!
 //! WIP
+// TODO: whatever the hell this is
 
 /// The API and rust representation(s)
 /// of core build processes that are
@@ -175,9 +176,10 @@ pub type NewPostBuildScriptCallback<'cb> = dyn FnMut(&str, &str) + 'cb;
 /// Callback for repository clone progress.
 ///
 /// Args:
-///  * the percentage (0.0 - 1.0)
+///  * recieved objects
+///  * total objects
 ///  * recieved bytes
-pub type RepoCloneProgressCallback<'cb> = dyn FnMut(f64, usize) + 'cb;
+pub type RepoCloneProgressCallback<'cb> = dyn FnMut(usize, usize, usize) + 'cb;
 
 /// A struct to store callbacks
 /// to hook various events during
@@ -250,7 +252,7 @@ impl<'cb> Callbacks<'cb> {
     // TODO: example
     pub fn repo_clone_progress<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(f64, usize) + 'cb,
+        F: FnMut(usize, usize, usize) + 'cb,
     {
         self.repo_clone_progress_cb =
             Some(Box::new(callback) as Box<RepoCloneProgressCallback<'cb>>);

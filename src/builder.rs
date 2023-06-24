@@ -1,3 +1,4 @@
+use duct::cmd;
 use git2::build::RepoBuilder;
 use git2::{FetchOptions, RemoteCallbacks};
 use n64romconvert::{byte_swap, endian_swap, RomType};
@@ -5,8 +6,8 @@ use n64romconvert::{byte_swap, endian_swap, RomType};
 use crate::prelude::{run_callback, Callbacks, LogType, Region};
 use crate::SmbuilderError;
 use crate::{make_file_executable, prelude::Spec};
-use duct::cmd;
 use std::io::{BufRead, BufReader};
+use std::sync::Arc;
 use std::{
     fs,
     io::Write,
@@ -212,19 +213,35 @@ impl<'a> Builder<'a> {
         run_callback!(self.callbacks.new_stage_cb, CloneRepo);
 
         let repo_name = &self.spec.repo.name;
-        let repo_dir = self.base_dir.join(repo_name);
+        let repo_dir = Arc::new(self.base_dir.join(repo_name));
 
         run_callback!(self.callbacks.log_cb, Info, "cloning the repository");
 
+        let repo_dir_thread = Arc::clone(&repo_dir);
+        // set up the ctrlc handler
+        ctrlc::set_handler(move || {
+            let repo_dir = (*(repo_dir_thread.clone())).clone();
+            println!("exiting on control-c...");
+
+            if !repo_dir.exists() {
+                std::process::exit(0);
+            }
+
+            fs::remove_dir_all(&repo_dir).unwrap_or_else(|e| {
+                panic!("failed to remove the dir at {}: {}", &repo_dir.display(), e)
+            });
+
+            std::process::exit(0);
+        })
+        .expect("failed to set the control-c handler!");
+
         let mut remote_callbacks = RemoteCallbacks::new();
         remote_callbacks.transfer_progress(|progress| {
-            let progress_percentage =
-                progress.received_objects() as f64 / progress.indexed_objects() as f64;
-
             run_callback!(
                 self.callbacks.repo_clone_progress_cb,
-                progress_percentage,
-                progress.received_bytes()
+                progress.received_objects(),
+                progress.total_objects(),
+                progress.received_bytes(),
             );
 
             true
@@ -236,7 +253,7 @@ impl<'a> Builder<'a> {
         RepoBuilder::new()
             .branch(&self.spec.repo.branch)
             .fetch_options(fetch_options)
-            .clone(&self.spec.repo.url, &repo_dir)
+            .clone(&self.spec.repo.url, &*repo_dir)
             .unwrap_or_else(|_| {
                 panic!(
                     "failed to clone the repository from {} into {}: ",
@@ -245,7 +262,7 @@ impl<'a> Builder<'a> {
                 )
             });
 
-        repo_dir
+        (*repo_dir).clone()
     }
 
     /// Copies the ROM from the path specified
@@ -318,10 +335,10 @@ impl<'a> Builder<'a> {
 
     /// Creates the post-build scripts
     /// directory at `repo_dir/scripts`.
-    pub fn create_scripts_dir<P: AsRef<Path>>(&mut self, repo_dir: P) -> PathBuf {
+    pub fn create_scripts_dir<P: AsRef<Path>>(&mut self, base_dir: P) -> PathBuf {
         run_callback!(self.callbacks.new_stage_cb, CreateScriptsDir);
 
-        let scripts_dir = repo_dir.as_ref().join("scripts");
+        let scripts_dir = base_dir.as_ref().join("scripts");
 
         if !scripts_dir.exists() {
             fs::create_dir(&scripts_dir)
@@ -367,7 +384,7 @@ impl<'a> Builder<'a> {
                     self.create_build_script(&repo_dir);
                 }
                 CreateScriptsDir => {
-                    let _ = self.create_scripts_dir(&repo_dir);
+                    let _ = self.create_scripts_dir(self.base_dir.clone());
                 }
                 WritePostBuildScripts => self.write_scripts(&scripts_dir),
             }
@@ -384,10 +401,7 @@ impl<'a> Builder<'a> {
         for line in reader.lines() {
             let ln = match line {
                 Ok(line) => line,
-                Err(e) => panic!(
-                    "please report this if it comes up and here's the error: {}",
-                    e
-                ),
+                Err(e) => panic!("The build command failed to run: {}", e),
             }; // exit when there is no more output
 
             run_callback!(self.callbacks.log_cb, BuildOutput, &ln);
@@ -428,7 +442,29 @@ impl<'a> Builder<'a> {
     /// ```
     pub fn build(&mut self) {
         self.setup_build();
-        self.compile();
+
+        let executable_name = format!("sm64.{}.f3dex2e", self.spec.rom.region.to_string());
+
+        let executable_path = self
+            .base_dir
+            .join(&self.spec.repo.name)
+            .join("build")
+            .join(format!("{}_pc", self.spec.rom.region.to_string()))
+            .join(executable_name);
+
+        if !executable_path.exists() {
+            self.compile();
+        } else {
+            run_callback!(
+                self.callbacks.log_cb,
+                LogType::Warn,
+                &format!(
+                    "not building the spec: the executable at {} already exists!",
+                    executable_path.display()
+                )
+            );
+        }
+
         self.post_build();
     }
 }

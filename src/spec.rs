@@ -2,8 +2,8 @@ use crate::prelude::*;
 use crate::romconvert::determine_format;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::path::Path;
+use std::{env, fs};
 
 #[derive(Debug, Default, Builder, Deserialize, Serialize)]
 /// Represents a build spec.
@@ -155,6 +155,14 @@ impl Spec {
 
         let jobs = self.jobs.unwrap_or(2);
 
+        let full_repo_dir = fs::canonicalize(&repo_path).unwrap_or_else(|e| {
+            panic!(
+                "failed to get the absolute path from {}: {}",
+                &repo_path.display(),
+                e
+            )
+        });
+
         format!(
             "
 #!/bin/sh
@@ -166,7 +174,7 @@ impl Spec {
 {} -C {} {} {} -j{}
         ",
             make_cmd,
-            repo_path.display(),
+            full_repo_dir.display(),
             platform_makeopts,
             makeopts_string,
             jobs
