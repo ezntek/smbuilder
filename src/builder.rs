@@ -74,19 +74,17 @@ impl ToString for SetupStage {
 /// ```rust
 /// use smbuilder::prelude::*;
 ///
-/// fn main() {
-///     // set your callbacks up first
-///     let mut callbacks = Callbacks::empty();
+/// // set your callbacks up first
+/// let mut callbacks = Callbacks::empty();
 ///
-///     // and your spec
-///     let my_spec = Spec::from_file("path/to/my/smbuilder.yaml")
+/// // and your spec
+/// let my_spec = Spec::from_file("path/to/my/smbuilder.yaml")
 ///
-///     // set up your builder
-///     let mut builder = Builder::new(my_spec, "path/to/the/root/dir", mut callbacks);
+/// // set up your builder
+/// let mut builder = Builder::new(my_spec, "path/to/the/root/dir", mut callbacks);
 ///
-///     // compile the spec, with the specified callbacks.
-///     builder.build();
-/// }
+/// // compile the spec, with the specified callbacks.
+/// builder.build();
 ///
 /// ```
 ///
@@ -104,14 +102,6 @@ pub struct Builder<'a> {
 impl<'a> Builder<'a> {
     /// Creates a new `Builder`.
     ///
-    /// It creates the base directory from
-    /// the parameter `root_dir`, which **is not**
-    /// the root directory of your disk, rather
-    /// it is the parent directory of where the
-    /// base directory will be. Useful if one
-    /// chooses to put it into a location such as
-    /// `$HOME/.local/share`, for frontends.
-    ///
     /// It takes in the callbacks, for events that
     /// may happen during the build process.
     ///
@@ -119,54 +109,22 @@ impl<'a> Builder<'a> {
     ///
     /// ```no_run
     /// # fn main() {
-    /// let mut builder = Builder::new(my_spec, my_root_dir, my_callbacks)
-    /// // you must have your spec, root dir and callbacks set up beforehand!
+    /// let mut builder = Builder::new(my_spec, my_base_dir, my_callbacks)
+    /// // you must have your spec, base dir and callbacks set up beforehand!
     /// # }
     /// ```
-    pub fn new<P: AsRef<Path>>(
+    pub fn new<P: Into<PathBuf>>(
         spec: Spec,
-        root_dir: P,
-        mut callbacks: Callbacks,
+        base_dir: P,
+        callbacks: Callbacks,
     ) -> Result<Builder, SmbuilderError> {
-        let base_dir = Builder::create_base_dir(&spec, root_dir, &mut callbacks);
-
         let result = Builder {
             spec,
-            base_dir,
+            base_dir: base_dir.into(),
             callbacks,
         };
 
         Ok(result)
-    }
-
-    fn create_base_dir<P: AsRef<Path>>(
-        spec: &Spec,
-        root_dir: P,
-        callbacks: &mut Callbacks,
-    ) -> PathBuf {
-        // this function runs before `new`,
-        // so this will not take in self, but
-        // will return the result that is relevant.
-
-        let base_dir_name = if let Some(name) = &spec.name {
-            name
-        } else {
-            &spec.repo.name
-        };
-
-        run_callback!(&mut callbacks.log_cb, Info, "creating the base directory");
-
-        let unconfirmed_base_dir = root_dir.as_ref().join(base_dir_name);
-        let base_dir = if unconfirmed_base_dir.exists() {
-            return unconfirmed_base_dir;
-        } else {
-            unconfirmed_base_dir
-        };
-
-        fs::create_dir(&base_dir)
-            .unwrap_or_else(|_| panic!("failed to create a directory at {:?}", &base_dir));
-
-        base_dir
     }
 
     /// Writes the current spec to disk.
@@ -207,9 +165,7 @@ impl<'a> Builder<'a> {
             });
     }
 
-    /// Clones the repository as specified in the
-    /// spec to disk.
-    pub fn clone_repo(&mut self) -> PathBuf {
+    fn clone_repo(&mut self) -> PathBuf {
         run_callback!(self.callbacks.new_stage_cb, CloneRepo);
 
         let repo_name = &self.spec.repo.name;
@@ -253,7 +209,7 @@ impl<'a> Builder<'a> {
         RepoBuilder::new()
             .branch(&self.spec.repo.branch)
             .fetch_options(fetch_options)
-            .clone(&self.spec.repo.url, &*repo_dir)
+            .clone(&self.spec.repo.url, &repo_dir)
             .unwrap_or_else(|_| {
                 panic!(
                     "failed to clone the repository from {} into {}: ",
@@ -265,11 +221,7 @@ impl<'a> Builder<'a> {
         (*repo_dir).clone()
     }
 
-    /// Copies the ROM from the path specified
-    /// in the spec into the root of the repo,
-    /// performing a format conversion if
-    /// necessary.
-    pub fn copy_rom<P: AsRef<Path>>(&mut self, repo_dir: P) {
+    fn copy_rom<P: AsRef<Path>>(&mut self, repo_dir: P) {
         run_callback!(self.callbacks.new_stage_cb, CopyRom);
         use RomType::*;
 
@@ -308,8 +260,7 @@ impl<'a> Builder<'a> {
         }
     }
 
-    /// Creates the build script in the `base_dir`.
-    pub fn create_build_script<P: AsRef<Path>>(&mut self, repo_dir: P) {
+    fn create_build_script<P: AsRef<Path>>(&mut self, repo_dir: P) {
         run_callback!(self.callbacks.new_stage_cb, CreateBuildScript);
 
         let file_path = self.base_dir.join("build.sh");
@@ -333,9 +284,7 @@ impl<'a> Builder<'a> {
         make_file_executable(&file_path)
     }
 
-    /// Creates the post-build scripts
-    /// directory at `repo_dir/scripts`.
-    pub fn create_scripts_dir<P: AsRef<Path>>(&mut self, base_dir: P) -> PathBuf {
+    fn create_scripts_dir<P: AsRef<Path>>(&mut self, base_dir: P) -> PathBuf {
         run_callback!(self.callbacks.new_stage_cb, CreateScriptsDir);
 
         let scripts_dir = base_dir.as_ref().join("scripts");
@@ -348,9 +297,7 @@ impl<'a> Builder<'a> {
         scripts_dir
     }
 
-    /// Write the post-build scripts
-    /// from the spec onto disk.
-    pub fn write_scripts<P: AsRef<Path>>(&mut self, scripts_dir: P) {
+    fn write_scripts<P: AsRef<Path>>(&mut self, scripts_dir: P) {
         run_callback!(self.callbacks.new_stage_cb, WritePostBuildScripts);
 
         if let Some(scripts) = &mut self.spec.scripts {
@@ -408,24 +355,64 @@ impl<'a> Builder<'a> {
         }
     }
 
-    fn post_build(&mut self) {
-        if let Some(scripts) = &self.spec.scripts {
-            for script in scripts {
-                run_callback!(
-                    self.callbacks.new_postbuild_script_cb,
-                    &script.name,
-                    &script.description
-                );
+    fn install_texture_pack(&mut self) {
+        let pack = if let Some(pack) = &self.spec.texture_pack {
+            pack
+        } else {
+            return;
+        };
 
-                let script_path = script.path.as_ref().unwrap_or_else(|| {
-                    panic!("failed to unwrap the script path (please report this bug!)")
-                });
+        let repo_dir = &self.base_dir.join(&self.spec.repo.name);
 
-                let cmd = cmd!(script_path);
-                cmd.run()
-                    .unwrap_or_else(|e| panic!("failed to run the command: {}", e));
-            }
+        pack.install(&self.spec, repo_dir).unwrap_or_else(|e| {
+            run_callback!(self.callbacks.log_cb, LogType::Error, &e.to_string());
+        });
+    }
+
+    fn install_dynos_packs(&mut self) {
+        let packs = if let Some(packs) = &self.spec.dynos_packs {
+            packs
+        } else {
+            return;
+        };
+
+        let repo_dir = &self.base_dir.join(&self.spec.repo.name);
+
+        for pack in packs {
+            pack.install(&self.spec, repo_dir).unwrap_or_else(|e| {
+                run_callback!(self.callbacks.log_cb, LogType::Error, &e.to_string());
+            });
         }
+    }
+
+    fn run_postbuild_scripts(&mut self) {
+        let scripts = if let Some(scripts) = &self.spec.scripts {
+            scripts
+        } else {
+            return;
+        };
+
+        for script in scripts {
+            run_callback!(
+                self.callbacks.new_postbuild_script_cb,
+                &script.name,
+                &script.description
+            );
+
+            let script_path = script.path.as_ref().unwrap_or_else(|| {
+                panic!("failed to unwrap the script path (please report this bug!)")
+            });
+
+            let cmd = cmd!(script_path);
+            cmd.run()
+                .unwrap_or_else(|e| panic!("failed to run the command: {}", e));
+        }
+    }
+
+    fn post_build(&mut self) {
+        self.install_texture_pack();
+        self.install_dynos_packs();
+        self.run_postbuild_scripts();
     }
 
     /// Build the spec.
@@ -433,8 +420,8 @@ impl<'a> Builder<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// let mut builder = Builder::new(my_spec, my_root_dir, my_callbacks);
-    /// // you must have your spec, root dir and callbacks set up beforehand!
+    /// let mut builder = Builder::new(my_spec, my_base_dir, my_callbacks);
+    /// // you must have your spec, base dir and callbacks set up beforehand!
     ///
     /// // builds the spec, takes a mutable reference
     /// // to itself for the callbacks.

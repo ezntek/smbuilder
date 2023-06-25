@@ -2,12 +2,15 @@ use crate::prelude::*;
 use std::{
     fmt::Debug,
     fs,
-    io::{BufWriter, Write},
+    io::{self, BufWriter, Write},
     path::Path,
 };
 
+use fs_extra::dir::CopyOptions;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
+extern crate fs_extra;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -76,6 +79,8 @@ pub struct Repo {
     /// The description of what the
     /// repo is, useful for launchers.
     pub about: String,
+    /// Does this repo support DynOS packs?
+    pub supports_dynos: bool,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -97,6 +102,12 @@ pub struct Patch {
     pub name: String,
     /// The location of the
     /// path file on disk.
+    pub path: PathBuf,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct TexturePack {
+    pub name: String,
     pub path: PathBuf,
 }
 
@@ -124,7 +135,7 @@ pub struct DynosPack {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
-/// Represents a texture pack.
+/// Represents a post build script
 pub struct PostBuildScript {
     /// The name of the script,
     /// to be used as the file
@@ -203,6 +214,14 @@ impl Makeopt {
 }
 
 impl PostBuildScript {
+    pub fn new<S: ToString>(name: S, description: S, contents: S) -> Self {
+        PostBuildScript {
+            name: name.to_string(),
+            description: description.to_string(),
+            contents: contents.to_string(),
+            path: None,
+        }
+    }
     /// Creates a post-build script from
     /// a `Path`.
     ///
@@ -252,5 +271,97 @@ impl PostBuildScript {
 
         self.path = Some(script_path.clone());
         script_path
+    }
+}
+
+// FIXME: docs
+impl DynosPack {
+    pub fn new<S, P>(name: S, path: P) -> Self
+    where
+        S: ToString,
+        P: Into<PathBuf>,
+    {
+        DynosPack {
+            name: name.to_string(),
+            path: path.into(),
+        }
+    }
+
+    pub fn install<P: AsRef<Path>>(&self, spec: &Spec, repo_dir: P) -> Result<(), SmbuilderError> {
+        let dir_name = self.path.iter().last().unwrap();
+
+        if !spec.repo.supports_dynos {
+            return Err(SmbuilderError::new(
+                None,
+                "the repo does not support DynOS Packs!",
+            ));
+        }
+
+        let target_path = repo_dir
+            .as_ref()
+            .join("build")
+            .join(format!("{}_pc", spec.rom.region.to_string()))
+            .join("dynos")
+            .join("packs")
+            .join(dir_name);
+        // {repo_dir}/build/{region}_pc/dynos/packs/{name of the pack's dirname}
+        fs_extra::dir::copy(&self.path, &target_path, &CopyOptions::new()).unwrap_or_else(|e| {
+            panic!(
+                "failed to copy the DynOS pack from {} to {}: {}",
+                &self.path.display(),
+                &target_path.display(),
+                e
+            )
+        });
+
+        Ok(())
+    }
+}
+
+impl TexturePack {
+    pub fn new<S, P>(name: S, path: P) -> Self
+    where
+        S: ToString,
+        P: Into<PathBuf>,
+    {
+        TexturePack {
+            name: name.to_string(),
+            path: path.into(),
+        }
+    }
+
+    pub fn install<P: AsRef<Path>>(&self, spec: &Spec, repo_dir: P) -> Result<(), SmbuilderError> {
+        let target_path = repo_dir
+            .as_ref()
+            .join("build")
+            .join(format!("{}_pc", spec.rom.region.to_string()))
+            .join("res")
+            .join("gfx");
+        // {repo_dir}/build/{region}_pc/res/gfx
+
+        let pack_path = &self.path.join("gfx");
+
+        if !pack_path.exists() {
+            let inner_err = io::Error::new(
+                io::ErrorKind::NotFound,
+                "could not find the gfx directory in the texture pack path!",
+            );
+
+            return Err(SmbuilderError::new(
+                Some(Box::new(inner_err)),
+                "the texture pack is not valid",
+            ));
+        };
+
+        fs_extra::dir::copy(pack_path, &target_path, &CopyOptions::new()).unwrap_or_else(|e| {
+            panic!(
+                "failed to copy the texture pack from {} to {}: {}",
+                &pack_path.display(),
+                &target_path.display(),
+                e
+            )
+        });
+
+        Ok(())
     }
 }

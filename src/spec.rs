@@ -2,8 +2,8 @@ use crate::prelude::*;
 use crate::romconvert::determine_format;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::path::Path;
-use std::{env, fs};
 
 #[derive(Debug, Default, Builder, Deserialize, Serialize)]
 /// Represents a build spec.
@@ -28,11 +28,13 @@ pub struct Spec {
     /// compiler.
     pub makeopts: Option<Vec<Makeopt>>,
     /// DynOS packs, if supported.
-    pub packs: Option<Vec<DynosPack>>,
-    /// Patches.
+    pub dynos_packs: Option<Vec<DynosPack>>,
+    /// Patrhes.
     pub patches: Option<Vec<Patch>>,
     /// Post install scripts.
     pub scripts: Option<Vec<PostBuildScript>>,
+    /// A texture pack.
+    pub texture_pack: Option<TexturePack>,
 }
 
 impl Spec {
@@ -155,7 +157,7 @@ impl Spec {
 
         let jobs = self.jobs.unwrap_or(2);
 
-        let full_repo_dir = fs::canonicalize(&repo_path).unwrap_or_else(|e| {
+        let full_repo_dir = fs::canonicalize(repo_path).unwrap_or_else(|e| {
             panic!(
                 "failed to get the absolute path from {}: {}",
                 &repo_path.display(),
