@@ -24,9 +24,6 @@ use SetupStage::*;
 /// It includes critical steps to be able to
 /// build a basic, vanilla port.
 pub enum SetupStage {
-    /// Write the spec file to disk.
-    WriteSpec,
-
     /// Clone the repository from
     /// the spec.
     CloneRepo,
@@ -46,17 +43,45 @@ pub enum SetupStage {
     WritePostBuildScripts,
 }
 
+#[derive(Debug)]
+/// An enum to represent the different post-build
+/// stages involved in building a port.
+///
+/// Represents actions such as installing model
+/// packs and texture packs, running scripts, etc.
+pub enum PostBuildStage {
+    /// Install the texture pack
+    TexturePack,
+    /// Install the DynOS packs(s)
+    DynOSPacks,
+    /// Run the Post-Build scripts
+    PostBuildScripts,
+}
+
 impl ToString for SetupStage {
     fn to_string(&self) -> String {
         use SetupStage::*;
 
         let result = match self {
-            WriteSpec => "write the spec to disk",
             CloneRepo => "clone the repository",
             CopyRom => "copy the base ROM",
             CreateBuildScript => "create the build script",
             CreateScriptsDir => "create the post-build script folder",
             WritePostBuildScripts => "write the post-build scripts",
+        };
+
+        result.to_owned()
+    }
+}
+
+impl ToString for PostBuildStage {
+    fn to_string(&self) -> String {
+        use PostBuildStage::*;
+
+        let result = match self {
+            TexturePack => "install the texture pack",
+            DynOSPacks => "install the DynOS pack(s)",
+            PostBuildScripts => "run the post-build script(s)",
         };
 
         result.to_owned()
@@ -125,44 +150,6 @@ impl<'a> Builder<'a> {
         };
 
         Ok(result)
-    }
-
-    /// Writes the current spec to disk.
-    pub fn write_spec(&mut self) {
-        run_callback!(self.callbacks.new_stage_cb, WriteSpec);
-
-        let file_path = self.base_dir.join("smbuilder.yaml");
-
-        run_callback!(
-            self.callbacks.log_cb,
-            Info,
-            &format!("creating the spec file at {}", &file_path.display())
-        );
-
-        let mut smbuilder_specfile = fs::File::create(&file_path).unwrap_or_else(|_| {
-            panic!(
-                "failed to create the spec file at {}: ",
-                &file_path.display()
-            )
-        });
-
-        run_callback!(
-            self.callbacks.log_cb,
-            Info,
-            &format!(
-                "writing the contents of the spec into {}",
-                &file_path.display()
-            )
-        );
-
-        smbuilder_specfile
-            .write_all(serde_yaml::to_string(&self.spec).unwrap().as_bytes())
-            .unwrap_or_else(|_| {
-                panic!(
-                    "failed to write the spec into the file at {}: ",
-                    &file_path.display()
-                )
-            });
     }
 
     fn clone_repo(&mut self) -> PathBuf {
@@ -320,7 +307,6 @@ impl<'a> Builder<'a> {
 
         for target in needed_targets {
             match target {
-                WriteSpec => self.write_spec(),
                 CloneRepo => {
                     let _ = self.clone_repo();
                 }
@@ -469,11 +455,6 @@ pub fn get_needed_setup_tasks<P: AsRef<Path>>(
 
     let base_dir = base_dir.as_ref();
     let mut needed_stages: Vec<SetupStage> = Vec::new();
-
-    // check if the spec exists in the dir
-    if !base_dir.join("smbuilder.yaml").exists() {
-        needed_stages.push(WriteSpec)
-    }
 
     // check if the repo is cloned
     if !base_dir.join(&spec.repo.name).exists() {

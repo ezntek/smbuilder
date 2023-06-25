@@ -304,7 +304,7 @@ impl DynosPack {
     ///
     // TODO: example
     pub fn install<P: AsRef<Path>>(&self, spec: &Spec, repo_dir: P) -> Result<(), SmbuilderError> {
-        let dir_name = self.path.iter().last().unwrap();
+        //let dir_name = self.path.iter().last().unwrap();
 
         if !spec.repo.supports_dynos {
             return Err(SmbuilderError::new(
@@ -318,8 +318,8 @@ impl DynosPack {
             .join("build")
             .join(format!("{}_pc", spec.rom.region.to_string()))
             .join("dynos")
-            .join("packs")
-            .join(dir_name);
+            .join("packs");
+        //.join(dir_name);
         // {repo_dir}/build/{region}_pc/dynos/packs/{name of the pack's dirname}
         fs_extra::dir::copy(&self.path, &target_path, &CopyOptions::new()).unwrap_or_else(|e| {
             panic!(
@@ -358,8 +358,8 @@ impl TexturePack {
             .as_ref()
             .join("build")
             .join(format!("{}_pc", spec.rom.region.to_string()))
-            .join("res")
-            .join("gfx");
+            .join("res");
+        //.join("gfx")
         // {repo_dir}/build/{region}_pc/res/gfx
 
         let pack_path = &self.path.join("gfx");
