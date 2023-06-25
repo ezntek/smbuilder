@@ -89,6 +89,7 @@ pub struct Repo {
 pub struct Makeopt {
     /// The key of the flag.
     pub key: String,
+
     /// The value of the flag.
     pub value: String,
 }
@@ -100,14 +101,22 @@ pub struct Patch {
     /// the patch, for use
     /// with launchers,
     pub name: String,
+
     /// The location of the
     /// path file on disk.
     pub path: PathBuf,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+/// Represents a Texture Pack.
 pub struct TexturePack {
+    /// The name (label) of
+    /// the textuer pack,
+    /// for use with launchers.
     pub name: String,
+
+    /// The location of the
+    /// texture pack on disk,
     pub path: PathBuf,
 }
 
@@ -214,6 +223,7 @@ impl Makeopt {
 }
 
 impl PostBuildScript {
+    /// Creates a new `PostBuildScript`.
     pub fn new<S: ToString>(name: S, description: S, contents: S) -> Self {
         PostBuildScript {
             name: name.to_string(),
@@ -274,8 +284,10 @@ impl PostBuildScript {
     }
 }
 
-// FIXME: docs
 impl DynosPack {
+    /// Creates a new DynOS pack.
+    ///
+    // TODO: example
     pub fn new<S, P>(name: S, path: P) -> Self
     where
         S: ToString,
@@ -287,6 +299,10 @@ impl DynosPack {
         }
     }
 
+    /// Installs the DynOS pack (copies it
+    /// into the correct location)
+    ///
+    // TODO: example
     pub fn install<P: AsRef<Path>>(&self, spec: &Spec, repo_dir: P) -> Result<(), SmbuilderError> {
         let dir_name = self.path.iter().last().unwrap();
 
@@ -319,6 +335,9 @@ impl DynosPack {
 }
 
 impl TexturePack {
+    /// Creates a new TexturePack.
+    ///
+    // TODO: example
     pub fn new<S, P>(name: S, path: P) -> Self
     where
         S: ToString,
@@ -330,6 +349,10 @@ impl TexturePack {
         }
     }
 
+    /// Installs the Texture pack (copies
+    /// it into the correct location)
+    ///
+    // TODO: example
     pub fn install<P: AsRef<Path>>(&self, spec: &Spec, repo_dir: P) -> Result<(), SmbuilderError> {
         let target_path = repo_dir
             .as_ref()

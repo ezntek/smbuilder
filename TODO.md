@@ -7,8 +7,10 @@
  * [x] add checking for if the spec had been built or not
  * [x] use absolute paths for the build script
  * [x] control c support
+ * [x] implement patches
+ * [ ] test everything
  * [ ] make the errors clearer
- * [ ] publish to crates.Io
+ * [ ] publish to crates.io
  * [ ] write a ref implementation in gtk-rs
  * [ ] write the examples
 
