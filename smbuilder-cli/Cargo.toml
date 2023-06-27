@@ -1,0 +1,13 @@
+[package]
+name = "smbuilder-cli"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+smbuilder = { path = "../smbuilder" }
+
+colored = "2.0.0"
+clap = "4.3.8"
+color-eyre = "0.6.2"

@@ -4,7 +4,7 @@ CLEAN_DIRNAMES := target/debug target/release target/doc
 CLEAN_DIRS := $(strip $(foreach dir,$(CLEAN_DIRNAMES),$(wildcard $(dir))))
 
 docs:
-	cargo doc --release --no-deps
+	cargo doc -p smbuilder --release --no-deps
 
 format:
 	cargo fmt

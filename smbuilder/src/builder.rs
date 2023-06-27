@@ -15,6 +15,7 @@ use std::{
 };
 
 use LogType::*;
+use PostBuildStage::*;
 use SetupStage::*;
 
 #[derive(Debug)]
@@ -106,7 +107,7 @@ impl ToString for PostBuildStage {
 /// let my_spec = Spec::from_file("path/to/my/smbuilder.yaml")
 ///
 /// // set up your builder
-/// let mut builder = Builder::new(my_spec, "path/to/the/root/dir", mut callbacks);
+/// let mut builder = Builder::new(my_spec, "path/to/the/base/dir", mut callbacks);
 ///
 /// // compile the spec, with the specified callbacks.
 /// builder.build();
@@ -153,7 +154,7 @@ impl<'a> Builder<'a> {
     }
 
     fn clone_repo(&mut self) -> PathBuf {
-        run_callback!(self.callbacks.new_stage_cb, CloneRepo);
+        run_callback!(self.callbacks.new_setup_stage_cb, CloneRepo);
 
         let repo_name = &self.spec.repo.name;
         let repo_dir = Arc::new(self.base_dir.join(repo_name));
@@ -209,7 +210,7 @@ impl<'a> Builder<'a> {
     }
 
     fn copy_rom<P: AsRef<Path>>(&mut self, repo_dir: P) {
-        run_callback!(self.callbacks.new_stage_cb, CopyRom);
+        run_callback!(self.callbacks.new_setup_stage_cb, CopyRom);
         use RomType::*;
 
         let rom_type = self.spec.rom.format;
@@ -248,7 +249,7 @@ impl<'a> Builder<'a> {
     }
 
     fn create_build_script<P: AsRef<Path>>(&mut self, repo_dir: P) {
-        run_callback!(self.callbacks.new_stage_cb, CreateBuildScript);
+        run_callback!(self.callbacks.new_setup_stage_cb, CreateBuildScript);
 
         let file_path = self.base_dir.join("build.sh");
 
@@ -272,7 +273,7 @@ impl<'a> Builder<'a> {
     }
 
     fn create_scripts_dir<P: AsRef<Path>>(&mut self, base_dir: P) -> PathBuf {
-        run_callback!(self.callbacks.new_stage_cb, CreateScriptsDir);
+        run_callback!(self.callbacks.new_setup_stage_cb, CreateScriptsDir);
 
         let scripts_dir = base_dir.as_ref().join("scripts");
 
@@ -285,7 +286,7 @@ impl<'a> Builder<'a> {
     }
 
     fn write_scripts<P: AsRef<Path>>(&mut self, scripts_dir: P) {
-        run_callback!(self.callbacks.new_stage_cb, WritePostBuildScripts);
+        run_callback!(self.callbacks.new_setup_stage_cb, WritePostBuildScripts);
 
         if let Some(scripts) = &mut self.spec.scripts {
             for script in scripts {
@@ -342,6 +343,8 @@ impl<'a> Builder<'a> {
     }
 
     fn install_texture_pack(&mut self) {
+        run_callback!(self.callbacks.new_postbuild_stage_cb, TexturePack);
+
         let pack = if let Some(pack) = &self.spec.texture_pack {
             pack
         } else {
@@ -356,6 +359,8 @@ impl<'a> Builder<'a> {
     }
 
     fn install_dynos_packs(&mut self) {
+        run_callback!(self.callbacks.new_postbuild_stage_cb, DynOSPacks);
+
         let packs = if let Some(packs) = &self.spec.dynos_packs {
             packs
         } else {
@@ -372,6 +377,8 @@ impl<'a> Builder<'a> {
     }
 
     fn run_postbuild_scripts(&mut self) {
+        run_callback!(self.callbacks.new_postbuild_stage_cb, PostBuildScripts);
+
         let scripts = if let Some(scripts) = &self.spec.scripts {
             scripts
         } else {

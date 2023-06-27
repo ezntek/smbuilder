@@ -1,14 +1,8 @@
 /target
-**/target
-
-# for testing smbuilder
-smbuilder-cli/something
-**/*.*64
-/*.*64
-
+/*.z64
+/something
 # Added by cargo
 #
 # already existing elements were commented out
 
 #/target
-.vscode

@@ -1,0 +1,26 @@
+rom:
+  region: us
+  path: /Users/easontek/Downloads/rom.v64
+  format: rom_ByteSwapped
+
+repo:
+  name: Render96ex
+  url: https://github.com/Render96/Render96ex
+  branch: alpha
+  about: something
+  supports_dynos: true
+
+jobs: 8
+name: Render96ex Alpha
+
+makeopts:
+  - key: DISCORDRPC
+    value: 0
+
+texture_pack:
+  name: Render96 HD Textures
+  path: /Users/easontek/Downloads/RENDER96-HD-TEXTURE-PACK-master
+
+dynos_packs:
+  - name: Render96 Models
+    path: /Users/easontek/Downloads/r96_dynos_3_2

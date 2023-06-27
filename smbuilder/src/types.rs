@@ -332,6 +332,28 @@ impl DynosPack {
 
         Ok(())
     }
+
+    /// Permanently removes the pack
+    /// from disk, effectively uninstalling
+    /// it.
+    pub fn remove<P: AsRef<Path>>(&self, spec: &Spec, repo_dir: P) {
+        let pack_filename = self
+            .path
+            .iter()
+            .last()
+            .expect("the DynOS pack should have a filename!");
+
+        let target_path = repo_dir
+            .as_ref()
+            .join("build")
+            .join(format!("{}_pc", spec.rom.region.to_string()))
+            .join("dynos")
+            .join("packs")
+            .join(pack_filename);
+
+        fs_extra::dir::remove(target_path)
+            .unwrap_or_else(|e| panic!("failed to remove the directory: {}", e));
+    }
 }
 
 impl TexturePack {
@@ -372,7 +394,7 @@ impl TexturePack {
 
             return Err(SmbuilderError::new(
                 Some(Box::new(inner_err)),
-                "the texture pack is not valid",
+                "the texture pack is not valid!",
             ));
         };
 
@@ -387,4 +409,32 @@ impl TexturePack {
 
         Ok(())
     }
+
+    /// Permanently removes the texture
+    /// pack from disk, effectively
+    /// uninstalling it.
+    pub fn remove<P: AsRef<Path>>(&self, spec: &Spec, repo_dir: P) {
+        let target_path = repo_dir
+            .as_ref()
+            .join("build")
+            .join(format!("{}_pc", spec.rom.region.to_string()))
+            .join("res")
+            .join("gfx");
+
+        fs_extra::dir::remove(target_path)
+            .unwrap_or_else(|e| panic!("could not find the texture pack to remove: {}", e));
+    }
 }
+/*
+impl Patch {
+    fn new<S: ToString, P: Into<PathBuf>>(name: S, path: P) -> Self {
+        Patch {
+            name: name.to_string(),
+            path: path.into(),
+        }
+    }
+
+    fn patch<P: AsRef<Path>>(&self, spec: &Spec, repo_dir: P) -> Result<(), SmbuilderError> {
+        Ok(())
+    }
+}*/

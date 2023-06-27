@@ -166,6 +166,12 @@ pub type LogCallback<'cb> = dyn FnMut(LogType, &str) + 'cb;
 ///  * setup stage
 pub type NewSetupStageCallback<'cb> = dyn FnMut(SetupStage) + 'cb;
 
+/// Callback for a new post-build stage.
+///
+/// Args:
+///  * post-build stage
+pub type NewPostBuildStageCallback<'cb> = dyn FnMut(PostBuildStage) + 'cb;
+
 /// Callback for when a new Post-Build script is run.
 ///
 /// Args:
@@ -192,7 +198,10 @@ pub struct Callbacks<'cb> {
     pub log_cb: Option<Box<LogCallback<'cb>>>,
     /// A callback that is invoked
     /// on a new setup stage.
-    pub new_stage_cb: Option<Box<NewSetupStageCallback<'cb>>>,
+    pub new_setup_stage_cb: Option<Box<NewSetupStageCallback<'cb>>>,
+    /// A callback that is invoked
+    /// on a new post-build stage.
+    pub new_postbuild_stage_cb: Option<Box<NewPostBuildStageCallback<'cb>>>,
     /// A callback that is invoked when
     /// a new post-build script is being
     /// run.
@@ -208,7 +217,8 @@ impl<'cb> Callbacks<'cb> {
     pub fn empty() -> Self {
         Callbacks {
             log_cb: None,
-            new_stage_cb: None,
+            new_setup_stage_cb: None,
+            new_postbuild_stage_cb: None,
             new_postbuild_script_cb: None,
             repo_clone_progress_cb: None,
         }
@@ -216,7 +226,7 @@ impl<'cb> Callbacks<'cb> {
 
     /// Set the log callback.
     ///
-    /// See the docs on `LogCallback`
+    /// See the docs on `[LogCallback]`
     /// for more information on arguments.
     ///
     // TODO: example
@@ -231,15 +241,29 @@ impl<'cb> Callbacks<'cb> {
     /// Set the new setup stage
     /// callback.
     ///
-    /// See the docs on `NewSetupStageCallback`
+    /// See the docs on `[NewSetupStageCallback]`
     /// for more information on arguments.
     ///
     // TODO: example.
-    pub fn new_stage<F>(mut self, callback: F) -> Self
+    pub fn new_setup_stage<F>(mut self, callback: F) -> Self
     where
         F: FnMut(SetupStage) + 'cb,
     {
-        self.new_stage_cb = Some(Box::new(callback) as Box<NewSetupStageCallback<'cb>>);
+        self.new_setup_stage_cb = Some(Box::new(callback) as Box<NewSetupStageCallback<'cb>>);
+        self
+    }
+
+    /// Set the new post-build stage
+    /// callback.
+    ///
+    /// See the docs on `[NewPostBuildStageCallback]`
+    /// for more information on arguments.
+    pub fn new_postbuild_stage<F>(mut self, callback: F) -> Self
+    where
+        F: FnMut(PostBuildStage) + 'cb,
+    {
+        self.new_postbuild_stage_cb =
+            Some(Box::new(callback) as Box<NewPostBuildStageCallback<'cb>>);
         self
     }
 
@@ -262,7 +286,7 @@ impl<'cb> Callbacks<'cb> {
     /// Set the new post-build script
     /// callback.
     ///
-    /// See the docs on `NewPostBuildScriptCallback`
+    /// See the docs on `[NewPostBuildScriptCallback]`
     /// for more information on arguments.
     ///
     // TODO: example
