@@ -28,6 +28,9 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const n64romconvert = b.dependency("n64romconvert_zig", .{});
+    smbuilder_mod.addImport("n64comconvert", n64romconvert.module("n64romconvert_lib"));
+
     // We will also create a module for our other entry point, 'main.zig'.
     const smbuilder_cli_mod = b.createModule(.{
         // `root_source_file` is the Zig "entry point" of the module. If a module
