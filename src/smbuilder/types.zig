@@ -156,6 +156,20 @@ pub const Makeopt = struct {
     pub fn deinit(self: *const Self, alloc: std.mem.Allocator) void {
         alloc.free(self.opt);
     }
+
+    pub fn jsonStringify(self: *const Self, out: anytype) !void {
+        try out.print("\"{s}\"", .{self.opt});
+    }
+
+    pub fn jsonParse(alloc: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) !Makeopt {
+        _ = options; // im a barbaric madman
+        return switch (try source.next()) {
+            .string => |opt| Makeopt{
+                .opt = try alloc.dupe(u8, opt),
+            },
+            else => return error.UnexpectedToken,
+        };
+    }
 };
 
 /// Represents a specification to build a game.
@@ -233,7 +247,12 @@ pub const SpecBuilder = struct {
     }
 
     pub fn setTexturePack(self: *Self, path: []const u8, name: []const u8) *Self {
-        self.texture_pack = TexturePack.init(self.alloc, path, name);
+        const pack = TexturePack.init(self.alloc, path, name);
+        return self.setTexturePackStruct(pack);
+    }
+
+    pub fn setTexturePackStruct(self: *Self, pack: TexturePack) *Self {
+        self.texture_pack = pack;
         return self;
     }
 
@@ -247,14 +266,14 @@ pub const SpecBuilder = struct {
         return self.addDynosPack(pack);
     }
 
-    pub fn addMakeoptStruct(self: *Self, makeopt: Makeopt) *Self {
-        self.makeopts.append(self.alloc, makeopt) catch |err| panic("allocation for new Makeopt failed: {any}", .{err});
-        return self;
-    }
-
     pub fn addMakeopt(self: *Self, opt: []const u8, val: []const u8) *Self {
         const makeopt = Makeopt.init(self.alloc, opt, val) catch |err| panic("allocation for new Makeopt failed: {any}", .{err});
         return self.addMakeoptStruct(makeopt);
+    }
+
+    pub fn addMakeoptStruct(self: *Self, makeopt: Makeopt) *Self {
+        self.makeopts.append(self.alloc, makeopt) catch |err| panic("allocation for new Makeopt failed: {any}", .{err});
+        return self;
     }
 
     pub fn setJobs(self: *Self, jobs: u16) *Self {
@@ -282,9 +301,10 @@ pub const SpecBuilder = struct {
 };
 
 test "rom repo slicing" {
-    const repo = Repo.initUnmanaged("theURL@theBranch");
+    const alloc = std.heap.page_allocator;
+    const repo = try Repo.init(alloc, "theURL@theBranch");
 
-    try std.testing.expect(std.mem.eql(u8, repo.getURL(), "theURL"));
+    try std.testing.expectEqualStrings("theURL", repo.getURL());
 }
 
 test "rom branch slicing" {
@@ -292,17 +312,45 @@ test "rom branch slicing" {
     const repo = try Repo.init(alloc, "theURL@theBranch");
     defer repo.deinit(alloc);
 
-    try std.testing.expect(std.mem.eql(u8, repo.getBranch().?, "theBranch"));
+    try std.testing.expectEqualStrings("theBranch", repo.getBranch().?);
 }
 
 test "rom branch slicing (no at)" {
-    const repo = Repo.initUnmanaged("theURL");
+    const alloc = std.heap.page_allocator;
+    const repo = try Repo.init(alloc, "theURL");
+    defer repo.deinit(alloc);
 
-    try std.testing.expect(repo.getBranch() == null);
+    try std.testing.expectEqual(null, repo.getBranch());
 }
 
 test "rom branch slicing (nothing after at)" {
-    const repo = Repo.initUnmanaged("theURL@");
+    const alloc = std.heap.page_allocator;
+    const repo = try Repo.init(alloc, "theURL@");
+    defer repo.deinit(alloc);
 
-    try std.testing.expect(repo.getBranch() == null);
+    try std.testing.expectEqual(null, repo.getBranch());
+}
+
+test "makeopt json dump" {
+    const alloc = std.heap.page_allocator;
+    var builder = Spec.builder(alloc);
+    const spec = try builder
+        .setRepo("https://github.com/sm64pc/sm64ex@nightly")
+        .setRom(.us, "./baserom.us.z64")
+        .addMakeopt("BETTERCAMERA", "1")
+        .setJobs(8)
+        .build();
+    const json = try spec.dumpJson(alloc);
+    defer alloc.free(json);
+
+    std.debug.print("{s}", .{json});
+}
+
+test "makeopt json parse" {
+    const alloc = std.heap.page_allocator;
+    const s = "{ \"makeopts\": [\"goodmorning\"] }";
+    const TestStruct = struct { makeopts: []Makeopt };
+    const parsed = try std.json.parseFromSlice(TestStruct, alloc, s, .{});
+    defer parsed.deinit();
+    try std.testing.expectEqualStrings("goodmorning", parsed.value.makeopts[0].opt);
 }
