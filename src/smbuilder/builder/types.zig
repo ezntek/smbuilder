@@ -2,7 +2,6 @@
 
 const std = @import("std");
 const panic = std.debug.panic;
-const util = @import("util.zig");
 const rc = @import("n64comconvert");
 
 /// Represents the ROM region
@@ -23,8 +22,8 @@ pub const Rom = struct {
 
     const Self = Rom;
 
-    pub fn init(alloc: std.mem.Allocator, path: []const u8, region: Region) !Self {
-        const a_path = try alloc.dupe(path);
+    pub fn init(alloc: std.mem.Allocator, region: Region, path: []const u8) !Self {
+        const a_path = try alloc.dupe(u8, path);
         return Self{
             .region = region,
             .path = a_path,
@@ -92,8 +91,8 @@ pub const TexturePack = struct {
     const Self = TexturePack;
 
     pub fn init(alloc: std.mem.Allocator, path: []const u8, name: []const u8) !Self {
-        const a_path = try alloc.dupe(path);
-        const a_name = try alloc.dupe(name);
+        const a_path = try alloc.dupe(u8, path);
+        const a_name = try alloc.dupe(u8, name);
         return Self{
             .path = a_path,
             .name = a_name,
@@ -115,8 +114,8 @@ pub const DynosPack = struct {
     const Self = DynosPack;
 
     pub fn init(alloc: std.mem.Allocator, path: []const u8, name: []const u8) !Self {
-        const a_path = try alloc.dupe(path);
-        const a_name = try alloc.dupe(name);
+        const a_path = try alloc.dupe(u8, path);
+        const a_name = try alloc.dupe(u8, name);
         return Self{
             .path = a_path,
             .name = a_name,
@@ -135,7 +134,7 @@ pub const Makeopt = struct {
     const Self = Makeopt;
 
     pub fn init(alloc: std.mem.Allocator, opt: []const u8, val: []const u8) !Self {
-        const alist: std.ArrayListUnmanaged(u8) = .empty;
+        var alist: std.ArrayListUnmanaged(u8) = .empty;
         try alist.appendSlice(alloc, opt);
         try alist.append(alloc, '=');
         try alist.appendSlice(alloc, val);
@@ -180,7 +179,7 @@ pub const Spec = struct {
         return SpecBuilder.init(alloc);
     }
 
-    pub fn deinit(self: *const Self, alloc: std.mem.Allocator) Self {
+    pub fn deinit(self: *const Self, alloc: std.mem.Allocator) *Self {
         self.repo.deinit(alloc);
         self.rom.deinit(alloc);
         if (self.texture_pack) |pack| {
@@ -192,6 +191,11 @@ pub const Spec = struct {
         for (self.makeopts) |makeopt| {
             makeopt.deinit(alloc);
         }
+    }
+
+    pub fn dumpJson(self: *const Self, alloc: std.mem.Allocator) ![]const u8 {
+        const res = try std.json.stringifyAlloc(alloc, self.*, .{});
+        return res;
     }
 };
 
@@ -211,46 +215,60 @@ pub const SpecBuilder = struct {
             .alloc = alloc,
             .dynos_packs = .empty,
             .makeopts = .empty,
+            .repo = null,
+            .rom = null,
+            .texture_pack = null,
+            .jobs = null,
         };
     }
 
-    pub fn setRepo(self: *Self, url: []const u8) Self {
-        self.repo = Repo.init(self.alloc, url);
+    pub fn setRepo(self: *Self, url: []const u8) *Self {
+        self.repo = Repo.init(self.alloc, url) catch |err| panic("allocation for Repo object creation failed: {any}", .{err});
         return self;
     }
 
-    pub fn setRom(self: *Self, region: Region, path: []const u8) Self {
+    pub fn setRom(self: *Self, region: Region, path: []const u8) *Self {
         self.rom = Rom.init(self.alloc, region, path) catch |err| panic("allocation for ROM object creation failed: {any}", .{err});
         return self;
     }
 
-    pub fn setTexturePack(self: *Self, path: []const u8, name: []const u8) Self {
+    pub fn setTexturePack(self: *Self, path: []const u8, name: []const u8) *Self {
         self.texture_pack = TexturePack.init(self.alloc, path, name);
         return self;
     }
 
-    pub fn addDynosPack(self: *Self, pack: DynosPack) Self {
+    pub fn addDynosPack(self: *Self, pack: DynosPack) *Self {
         self.dynos_packs.append(self.alloc, pack) catch |err| panic("allocation for new DynOS pack failed: {any}", .{err});
         return self;
     }
 
-    pub fn addMakeopt(self: *Self, makeopt: Makeopt) Self {
+    pub fn addDynosPackStruct(self: *Self, path: []const u8, name: []const u8) *Self {
+        const pack = DynosPack.init(self.alloc, path, name) catch |err| panic("allocation for DynOS pack failed: {any}", .{err});
+        return self.addDynosPack(pack);
+    }
+
+    pub fn addMakeoptStruct(self: *Self, makeopt: Makeopt) *Self {
         self.makeopts.append(self.alloc, makeopt) catch |err| panic("allocation for new Makeopt failed: {any}", .{err});
         return self;
     }
 
-    pub fn setJobs(self: *Self, jobs: u16) Self {
+    pub fn addMakeopt(self: *Self, opt: []const u8, val: []const u8) *Self {
+        const makeopt = Makeopt.init(self.alloc, opt, val) catch |err| panic("allocation for new Makeopt failed: {any}", .{err});
+        return self.addMakeoptStruct(makeopt);
+    }
+
+    pub fn setJobs(self: *Self, jobs: u16) *Self {
         self.jobs = jobs;
         return self;
     }
 
-    pub fn build(self: Self) !Spec {
-        const repo = self._repo.?;
-        const rom = self._rom.?;
-        const texture_pack = self._texture_pack;
-        const dynos_packs = try self._dynos_packs.toOwnedSlice(self.alloc);
-        const makeopts = try self._makeopts.toOwnedSlice(self.alloc);
-        const jobs = self._jobs.?;
+    pub fn build(self: *Self) !Spec {
+        const repo = self.repo.?;
+        const rom = self.rom.?;
+        const texture_pack = self.texture_pack;
+        const dynos_packs = try self.dynos_packs.toOwnedSlice(self.alloc);
+        const makeopts = try self.makeopts.toOwnedSlice(self.alloc);
+        const jobs = self.jobs.?;
 
         return Spec{
             .repo = repo,
