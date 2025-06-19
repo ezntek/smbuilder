@@ -9,7 +9,6 @@ pub const Region = enum {
     us,
     eu,
     jp,
-    shindou,
 };
 
 pub const RomType = rc.RomType;
@@ -60,6 +59,12 @@ pub const Repo = struct {
         } else {
             return self.url;
         }
+    }
+
+    pub fn getName(self: *const Self) []const u8 {
+        const url = self.getURL();
+        const slash_pos = std.mem.lastIndexOfScalar(u8, url, '/') orelse panic("could not get base name of repo", .{});
+        return url[slash_pos + 1 ..];
     }
 
     /// returns the branch part of the URL as a borrowed slice
