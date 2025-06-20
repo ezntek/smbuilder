@@ -81,6 +81,20 @@ pub const Repo = struct {
         }
     }
 
+    pub fn jsonStringify(self: *const Self, out: anytype) !void {
+        try out.print("\"{s}\"", .{self.url});
+    }
+
+    pub fn jsonParse(alloc: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) !Self {
+        _ = options; // im a barbaric madman
+        return switch (try source.next()) {
+            .string => |url| Self{
+                .url = try alloc.dupe(u8, url),
+            },
+            else => return error.UnexpectedToken,
+        };
+    }
+
     /// deinits the struct. Calling this if the memory is not allocated by `alloc` is UB.
     pub fn deinit(self: *const Self, alloc: std.mem.Allocator) void {
         alloc.free(self.url);
@@ -198,7 +212,7 @@ pub const Spec = struct {
         return SpecBuilder.init(alloc);
     }
 
-    pub fn deinit(self: *const Self, alloc: std.mem.Allocator) *Self {
+    pub fn deinit(self: *const Self, alloc: std.mem.Allocator) void {
         self.repo.deinit(alloc);
         self.rom.deinit(alloc);
         if (self.texture_pack) |pack| {
@@ -212,8 +226,15 @@ pub const Spec = struct {
         }
     }
 
-    pub fn dumpJson(self: *const Self, alloc: std.mem.Allocator) ![]const u8 {
+    pub fn toJson(self: *const Self, alloc: std.mem.Allocator) ![]const u8 {
         const res = try std.json.stringifyAlloc(alloc, self.*, .{});
+        return res;
+    }
+
+    pub fn fromJson(alloc: std.mem.Allocator, json: []const u8) !Self {
+        const parsed = try std.json.parseFromSlice(Self, alloc, json, .{});
+        const res = try alloc.dupe(Self, parsed.value);
+        parsed.deinit();
         return res;
     }
 };
@@ -345,7 +366,7 @@ test "makeopt json dump" {
         .addMakeopt("BETTERCAMERA", "1")
         .setJobs(8)
         .build();
-    const json = try spec.dumpJson(alloc);
+    const json = try spec.toJson(alloc);
     defer alloc.free(json);
 
     std.debug.print("{s}", .{json});

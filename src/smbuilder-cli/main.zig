@@ -6,7 +6,7 @@ pub fn main() !void {
     var b = smbuilder.types.Spec.builder(alloc);
     const spec = try b
         .setRepo("https://github.com/sm64pc/sm64ex@nightly")
-        .setRom(.us, "/home/ezntek/baserom.us.z64")
+        .setRom(.us, "/home/ezntek/baserom.us.v64")
         .addMakeopt("DISCORDRPC", "1")
         .setJobs(8)
         .build();
@@ -14,5 +14,5 @@ pub fn main() !void {
     const dir = "./build";
 
     const builder = try smbuilder.builder.Builder.init(alloc, spec, dir);
-    try builder.build();
+    builder.build() catch |err| std.debug.panic("a fatal error occured: {any}", .{err});
 }

@@ -37,8 +37,8 @@
     // internet connectivity.
     .dependencies = .{
         .n64romconvert_zig = .{
-            .url = "git+https://github.com/ezntek/n64romconvert-zig#b59e987f8bc9e6528724c6b91505454994c05f4a",
-            .hash = "n64romconvert_zig-0.1.0-t1h5FDlUAAD7MIk3ox29Z-LnBukd0G2n5ODdEDfRulcv",
+            .url = "git+https://github.com/ezntek/n64romconvert-zig#c978eb2eca8a4dd8c746348cc6521d24813fb6f4",
+            .hash = "n64romconvert_zig-0.2.0-t1h5FEZWAAAKWQxzNj3_BsjnsKOpxiMiBK5uGrS84dUn",
         },
     },
     .paths = .{
