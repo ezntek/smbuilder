@@ -21,7 +21,7 @@ pub const Builder = struct {
     };
 
     fn fileExists(path: []const u8) bool {
-        var tmp = std.fs.openFileAbsolute(path, .{}) catch |err| switch (err) {
+        var tmp = std.fs.cwd().openFile(path, .{}) catch |err| switch (err) {
             error.FileNotFound => return false,
             else => panic("failed to open file `{s}`: {any}", .{ path, err }),
         };
@@ -30,7 +30,7 @@ pub const Builder = struct {
     }
 
     fn dirExists(path: []const u8) bool {
-        var tmp = std.fs.openDirAbsolute(path, .{}) catch |err| switch (err) {
+        var tmp = std.fs.cwd().openDir(path, .{}) catch |err| switch (err) {
             error.FileNotFound => return false,
             else => panic("failed to open file `{s}`: {any}", .{ path, err }),
         };
@@ -47,25 +47,12 @@ pub const Builder = struct {
     /// Passing in a file for the base dir results in a panic.
     /// This struct expects the same allocator for both the spec and itself.
     pub fn init(alloc: std.mem.Allocator, spec: types.Spec, base_dir: []const u8) !Self {
-        var a_base_dir: []u8 = undefined;
-        if (std.fs.path.isAbsolute(base_dir)) {
-            std.fs.makeDirAbsolute(base_dir) catch |err| switch (err) {
-                error.PathAlreadyExists => {},
-                else => return err,
-            };
+        std.fs.cwd().makeDir(base_dir) catch |err| switch (err) {
+            error.PathAlreadyExists => {},
+            else => return err,
+        };
 
-            a_base_dir = try alloc.dupe(u8, base_dir);
-        } else {
-            std.fs.cwd().makeDir(base_dir) catch |err| switch (err) {
-                error.PathAlreadyExists => {},
-                else => return err,
-            };
-
-            a_base_dir = std.fs.realpathAlloc(alloc, base_dir) catch |err|
-                panic("failed to resolve realpath for base dir `{s}`: {any}", .{ base_dir, err });
-        }
-
-        _ = std.fs.openDirAbsolute(a_base_dir, .{}) catch |err| switch (err) {
+        _ = std.fs.cwd().openDir(base_dir, .{}) catch |err| switch (err) {
             error.NotDir => panic("expected a directory for base_dir, got a file", .{}),
             else => return err,
         }.close();
@@ -73,7 +60,7 @@ pub const Builder = struct {
         return Self{
             .alloc = alloc,
             .spec = spec,
-            .base_dir = a_base_dir,
+            .base_dir = base_dir,
         };
     }
 
@@ -159,18 +146,13 @@ pub const Builder = struct {
         const target_path = self.joinPaths(&.{ self.base_dir, self.spec.repo.getName(), "baserom.us.z64" });
         defer self.alloc.free(target_path);
 
-        const src_path = if (std.fs.path.isAbsolute(self.spec.rom.path))
-            try self.alloc.dupe(u8, self.spec.rom.path)
-        else
-            try std.fs.realpathAlloc(self.alloc, self.spec.rom.path);
-
-        defer self.alloc.free(src_path);
+        const src_path = self.spec.rom.path;
 
         const src_format = try rc.determineFormatFromPath(src_path);
         const target_format = .big_endian;
 
         if (src_format == target_format) {
-            try std.fs.copyFileAbsolute(src_path, target_path, .{});
+            try std.fs.cwd().copyFile(src_path, std.fs.cwd(), target_path, .{});
         } else {
             try rc.convertPaths(src_format, target_format, src_path, target_path);
         }
