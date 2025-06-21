@@ -15,4 +15,5 @@ pub fn main() !void {
 
     const builder = try smbuilder.builder.Builder.init(alloc, spec, dir);
     builder.build() catch |err| std.debug.panic("a fatal error occured: {any}", .{err});
+    builder.run() catch |err| std.debug.panic("a fatal error occured: {any}", .{err});
 }

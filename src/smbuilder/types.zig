@@ -313,7 +313,7 @@ pub const SpecBuilder = struct {
         const texture_pack = self.texture_pack;
         const dynos_packs = try self.dynos_packs.toOwnedSlice(self.alloc);
         const makeopts = try self.makeopts.toOwnedSlice(self.alloc);
-        const jobs = self.jobs.?;
+        const jobs = if (self.jobs) |j| j else 4;
 
         return Spec{
             .repo = repo,
